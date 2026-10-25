@@ -1,3 +1,4 @@
+import { isBrowserPreview } from './preview-bootstrap';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -508,7 +509,12 @@ export function ReviewPage() {
               </div>
             </div>
             {r.version > 0 && (
-              <a className="form-download-row" href={`/api/requests/${r.id}/form`}>
+              <a
+                className="form-download-row"
+                href={`/api/requests/${r.id}/form`}
+                target={isBrowserPreview ? '_blank' : undefined}
+                rel="noopener"
+              >
                 <FileText size={24} />
                 <div>
                   <strong>استمارة النشاط الطلابي</strong>

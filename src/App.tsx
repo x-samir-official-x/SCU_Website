@@ -169,7 +169,9 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
           </div>
           {session.demo && (
             <p className="demo-disclaimer">
-              بيئة تجريبية ببيانات وهمية. لا تستخدم بيانات أو مستندات شخصية حقيقية.
+              {session.preview
+                ? 'معاينة تفاعلية ببيانات محلية في متصفحك. لا تستخدم كلمات مرور أو مستندات شخصية حقيقية.'
+                : 'بيئة تجريبية ببيانات وهمية. لا تستخدم بيانات أو مستندات شخصية حقيقية.'}
             </p>
           )}
         </div>
@@ -368,9 +370,13 @@ function Shell() {
           <div className="demo-bar">
             <span>
               <span className="demo-dot" />
-              نسخة تجريبية
+              {session.preview ? 'معاينة تفاعلية' : 'نسخة تجريبية'}
             </span>
-            <p>بيانات للعرض والاختبار فقط — الربط الرسمي بالجامعة غير مفعّل.</p>
+            <p>
+              {session.preview
+                ? 'البيانات محفوظة في هذا المتصفح فقط؛ ليست مشتركة بين الأجهزة ولا تصلح للاستخدام الرسمي.'
+                : 'بيانات للعرض والاختبار فقط — الربط الرسمي بالجامعة غير مفعّل.'}
+            </p>
           </div>
         )}
         <main className="main-content" id="main-content" tabIndex={-1}>

@@ -1,3 +1,4 @@
+import { isBrowserPreview } from './preview-bootstrap';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -207,8 +208,14 @@ export function StudentDashboard() {
                   بياناتك محفوظة في حسابك
                 </span>
                 {r.version > 0 && (
-                  <a className="text-button" href={`/api/requests/${r.id}/form`}>
-                    تنزيل الاستمارة <Download size={16} />
+                  <a
+                    className="text-button"
+                    href={`/api/requests/${r.id}/form`}
+                    target={isBrowserPreview ? '_blank' : undefined}
+                    rel="noopener"
+                  >
+                    {isBrowserPreview ? 'عرض وطباعة الاستمارة' : 'تنزيل الاستمارة'}{' '}
+                    <Download size={16} />
                   </a>
                 )}
               </div>
@@ -566,9 +573,14 @@ export function ActivityPage() {
             </p>
           </div>
           {r.version > 0 && (
-            <a className="button secondary" href={`/api/requests/${r.id}/form`}>
+            <a
+              className="button secondary"
+              href={`/api/requests/${r.id}/form`}
+              target={isBrowserPreview ? '_blank' : undefined}
+              rel="noopener"
+            >
               <Download size={17} />
-              تنزيل الاستمارة
+              {isBrowserPreview ? 'عرض وطباعة الاستمارة' : 'تنزيل الاستمارة'}
             </a>
           )}
         </div>
@@ -862,9 +874,14 @@ export function DocumentsPage() {
               {requestNumber(r.id)} · الإصدار {number(r.version)} · {date(r.submitted_at)}
             </small>
           </div>
-          <a className="button primary" href={`/api/requests/${r.id}/form`}>
+          <a
+            className="button primary"
+            href={`/api/requests/${r.id}/form`}
+            target={isBrowserPreview ? '_blank' : undefined}
+            rel="noopener"
+          >
             <Download size={18} />
-            تنزيل PDF
+            {isBrowserPreview ? 'عرض وطباعة الاستمارة' : 'تنزيل PDF'}
           </a>
         </section>
       ) : (

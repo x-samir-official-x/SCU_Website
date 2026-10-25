@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-preview/
+.vercel/
 .env
 .env.*
 !.env.example

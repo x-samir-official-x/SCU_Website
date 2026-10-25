@@ -24,6 +24,7 @@ export interface Session {
   user: User | null;
   csrfToken?: string;
   demo: boolean;
+  preview?: boolean;
   faculty: Faculty;
 }
 export interface Attachment {
