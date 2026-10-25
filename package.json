@@ -6,12 +6,15 @@
   "scripts": {
     "dev": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 0.0.0.0\"",
     "build": "tsc --noEmit && vite build",
-    "start": "NODE_ENV=production tsx server/index.ts",
+    "start": "cross-env NODE_ENV=production tsx server/index.ts",
+    "dev:demo": "cross-env DEMO_MODE=true npm run dev",
+    "start:demo": "cross-env DEMO_MODE=true COOKIE_SECURE=false npm start",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "test:browser": "tsx tests/browser.smoke.ts"
   },
   "dependencies": {
+    "cross-env": "^10.1.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",

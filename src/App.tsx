@@ -33,29 +33,8 @@ import type { Role, Session } from './types';
 import { StudentDashboard, ActivityPage, DocumentsPage } from './Student';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
 
-function Mark({ light = false }: { light?: boolean }) {
-  return (
-    <div className={`brand ${light ? 'light' : ''}`}>
-      <span className="brand-mark">
-        <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
-          <path
-            d="M10 28V16h6v12m8 0V11h6v17M8 32h24"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-          <circle cx="13" cy="10" r="2.5" fill="currentColor" />
-        </svg>
-      </span>
-      <div>
-        <strong>
-          أثَر<span className="brand-dot">.</span>
-        </strong>
-        <small>بوابة النشاط الطلابي</small>
-      </div>
-    </div>
-  );
-}
+import { BrandMark as Mark, AcademicSeal, LoginProcess } from './Brand';
+
 function Login({ session, refresh }: { session: Session; refresh: () => Promise<void> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -96,49 +75,22 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
       <section className="login-story">
         <Mark light />
         <div className="login-story-body">
-          <span className="eyebrow light">
-            <span />
-            خطوة صغيرة. أثر يستمر.
-          </span>
+          <span className="login-institution-label">جامعة قناة السويس</span>
           <h1>
-            مشاركتك تصنع
+            بوابة النشاط
             <br />
-            <span>فرقًا.</span>
+            الطلابي
           </h1>
           <p>
-            مساحتك لتوثيق نشاطك، ومتابعة رحلتك
-            <br className="desktop-only" /> من أول مشاركة إلى الاعتماد.
+            خدمات النشاط الطلابي بكلية التجارة.
+            <br />
+            من تسجيل المشاركة إلى مراجعتها واعتمادها، في مكان واحد.
           </p>
-          <div className="campus-art" aria-hidden="true">
-            <div className="art-orbit one" />
-            <div className="art-orbit two" />
-            <div className="art-star">
-              <Sparkles size={28} />
-            </div>
-            <svg viewBox="0 0 440 220">
-              <path
-                d="M55 190h330M87 185V89h266v96M74 84l146-65 146 65H74Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <path
-                d="M110 100v74m45-74v74m44-74v74m44-74v74m44-74v74m44-74v74M96 103h248M96 174h248M80 196h280M69 207h302"
-                stroke="currentColor"
-                strokeWidth="6"
-              />
-              <circle cx="220" cy="59" r="14" fill="none" stroke="currentColor" strokeWidth="2" />
-            </svg>
-            <span className="art-tag">
-              <Leaf size={16} /> لكل مشاركة قيمة
-            </span>
-          </div>
+          <LoginProcess />
         </div>
         <div className="login-story-footer">
-          <span>{session.faculty.faculty}</span>
-          <span>
-            نحو تجربة جامعية أكثر أثرًا <ArrowUpLeft size={14} />
-          </span>
+          <span>كلية التجارة</span>
+          <span>تسجيل · متابعة · اعتماد</span>
         </div>
       </section>
       <section className="login-form-side">
@@ -148,7 +100,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
         </div>
         <div className="login-form-wrap">
           <span className="section-kicker">أهلًا بعودتك</span>
-          <h2>ابدأ رحلتك من هنا</h2>
+          <h2>تسجيل الدخول</h2>
           <p className="muted">سجّل دخولك للوصول إلى حسابك ومتابعة نشاطك.</p>
           {session.demo && (
             <div className="demo-login">
@@ -181,6 +133,8 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
                 type="email"
                 required
                 autoComplete="username"
+                name="email"
+                spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.edu"
@@ -193,6 +147,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
                 type="password"
                 required
                 autoComplete="current-password"
+                name="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="أدخل كلمة المرور"
@@ -218,7 +173,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             </p>
           )}
         </div>
-        <footer className="login-copyright">أثَر — كل مشاركة تستحق أن تُروى.</footer>
+        <footer className="login-copyright">كلية التجارة — جامعة قناة السويس</footer>
       </section>
     </div>
   );
@@ -234,12 +189,13 @@ function Shell() {
   useEffect(() => {
     setOpen(false);
     setAccountOpen(false);
+    document.getElementById('main-content')?.focus({ preventScroll: true });
   }, [location.pathname]);
   const isStudent = user.role === 'student';
   const nav = isStudent
     ? [
         { path: '/', label: 'الرئيسية', icon: LayoutDashboard },
-        { path: '/activity', label: 'نشاطي', icon: Leaf },
+        { path: '/activity', label: 'نشاطي', icon: ClipboardCheck },
         { path: '/documents', label: 'المستندات والاستمارة', icon: FileText },
       ]
     : [
@@ -318,13 +274,13 @@ function Shell() {
         <div className="sidebar-bottom">
           <div className="sidebar-note">
             <span className="tiny-leaf">
-              <Leaf size={19} />
+              <BookOpen size={19} aria-hidden="true" />
             </span>
-            <h4>كل نشاط، بداية أثر.</h4>
+            <h4>خدمات النشاط الطلابي</h4>
             <p>
-              وثّق مشاركتك وخلّي إنجازك
+              سجّل نشاطك وتابع طلبك
               <br />
-              جزءًا من رحلتك الجامعية.
+              حتى اكتمال الاعتماد.
             </p>
           </div>
           <div className="sidebar-user">
@@ -396,6 +352,18 @@ function Shell() {
             </div>
           </div>
         </header>
+        <div className="mobile-institution">
+          <div>
+            <strong>{session.faculty.university}</strong>
+            <span>{session.faculty.faculty}</span>
+          </div>
+          <img
+            src={session.faculty.logoPath}
+            width="2001"
+            height="786"
+            alt="شعار الجامعة والكلية"
+          />
+        </div>
         {session.demo && (
           <div className="demo-bar">
             <span>
@@ -405,27 +373,29 @@ function Shell() {
             <p>بيانات للعرض والاختبار فقط — الربط الرسمي بالجامعة غير مفعّل.</p>
           </div>
         )}
-        <main className="main-content" id="main-content">
-          <Routes>
-            <Route path="/" element={isStudent ? <StudentDashboard /> : <StaffDashboard />} />
-            {isStudent ? (
-              <>
-                <Route path="/activity" element={<ActivityPage />} />
-                <Route path="/documents" element={<DocumentsPage />} />
-              </>
-            ) : (
-              <>
-                <Route path="/requests" element={<RequestList />} />
-                <Route path="/requests/:id" element={<ReviewPage />} />
-                {user.role === 'admin' && <Route path="/staff" element={<StaffPage />} />}
-              </>
-            )}
-            <Route path="/guide" element={<Guide />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+        <main className="main-content" id="main-content" tabIndex={-1}>
+          <div className="route-surface" key={location.pathname}>
+            <Routes>
+              <Route path="/" element={isStudent ? <StudentDashboard /> : <StaffDashboard />} />
+              {isStudent ? (
+                <>
+                  <Route path="/activity" element={<ActivityPage />} />
+                  <Route path="/documents" element={<DocumentsPage />} />
+                </>
+              ) : (
+                <>
+                  <Route path="/requests" element={<RequestList />} />
+                  <Route path="/requests/:id" element={<ReviewPage />} />
+                  {user.role === 'admin' && <Route path="/staff" element={<StaffPage />} />}
+                </>
+              )}
+              <Route path="/guide" element={<Guide />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
           <footer className="page-footer">
             <span>
-              أثَر <span>—</span> بوابة النشاط الطلابي
+              جامعة قناة السويس <span>—</span> بوابة النشاط الطلابي
             </span>
             <span>
               {session.faculty.faculty} · {session.faculty.period}

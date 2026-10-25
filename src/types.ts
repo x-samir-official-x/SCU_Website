@@ -11,6 +11,7 @@ export interface User {
 }
 export interface Faculty {
   brand: string;
+  logoPath: string;
   faculty: string;
   university: string;
   period: string;

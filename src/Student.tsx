@@ -43,11 +43,16 @@ import {
   useModalFocus,
 } from './lib';
 import type { ActivityRequest, Attachment } from './types';
+import { AcademicSeal } from './Brand';
 
 export function ProgressRing({ approved, large = false }: { approved: boolean; large?: boolean }) {
   return (
-    <div className={`progress-ring ${large ? 'large' : ''}`}>
-      <svg viewBox="0 0 120 120">
+    <div
+      className={`progress-ring ${large ? 'large' : ''}`}
+      role="img"
+      aria-label={`درجة النشاط: ${approved ? '٤٠' : '٠'} من ٤٠`}
+    >
+      <svg viewBox="0 0 120 120" aria-hidden="true">
         <circle className="ring-track" cx="60" cy="60" r="50" />
         <circle
           className="ring-value"
@@ -82,64 +87,61 @@ export function StudentDashboard() {
         <div>
           <span className="section-kicker">
             <span className="live-dot" />
-            مساحتك، وإنجازك
+            خدمات الطلاب
           </span>
-          <h1>
-            أهلًا، {user.name.split(' ')[0]} <span className="wave">✦</span>
-          </h1>
-          <p>كل مشاركة لها أثر. وثّق نشاطك، وتابع خطواتك من هنا.</p>
+          <h1>أهلًا، {user.name.split(' ')[0]}</h1>
+          <p>سجّل نشاطك، وتابع حالة الطلب والخطوة المطلوبة منك.</p>
         </div>
         <div className="date-chip">
           <CalendarDays size={17} />
           {date(new Date().toISOString())}
         </div>
       </div>
-      <section className="hero">
+      <section className="hero institutional-hero">
         <div className="hero-content">
           <span className="hero-label">
-            <Leaf size={15} />
-            نشاطك يصنع أثرًا
+            <ShieldCheck size={16} aria-hidden="true" />
+            بوابة النشاط الطلابي · كلية التجارة
           </span>
           <h2>
-            خطوة منك.
-            <br />
-            <span>أثر أكبر لمجتمعك.</span>
+            {approved
+              ? 'تم اعتماد نشاطك الجامعي.'
+              : r?.status === 'revision'
+                ? 'خطوة لاستكمال طلبك.'
+                : 'نشاطك الجامعي، بخطوات واضحة.'}
           </h2>
           <p>
-            سجّل مشاركتك الجامعية، ودع إنجازك يتحدث عنك.
-            <br className="desktop-only" /> رحلة بسيطة، من تسجيل النشاط إلى اعتماده.
+            {approved
+              ? 'اكتمل استحقاق النشاط وأُضيفت ٤٠ درجة إلى سجلك.'
+              : r?.status === 'pending'
+                ? 'طلبك بانتظار المراجعة. نزّل الاستمارة وقدّمها إلى المكتب المختص.'
+                : 'قدّم بيانات مشاركتك ومستنداتها، واستخرج الاستمارة، ثم تابع المراجعة والاعتماد.'}
           </p>
-          <Link to="/activity" className="button hero-button">
-            {editable
-              ? r?.status === 'revision'
-                ? 'استكمال طلبي'
-                : r
-                  ? 'استكمال النشاط'
-                  : 'سجّل نشاطك الآن'
-              : 'متابعة نشاطي'}
-            <ArrowLeft size={18} />
-          </Link>
+          <div className="hero-actions">
+            <Link to="/activity" className="button hero-button">
+              {editable
+                ? r?.status === 'revision'
+                  ? 'استكمال طلبي'
+                  : r
+                    ? 'استكمال النشاط'
+                    : 'سجّل نشاطك الآن'
+                : 'متابعة نشاطي'}
+              <ArrowLeft size={18} aria-hidden="true" />
+            </Link>
+            <Link to="/guide" className="hero-guide">
+              خطوات التقديم <ArrowUpLeft size={16} aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="hero-footnote">
+            <ShieldCheck size={14} aria-hidden="true" />
+            نشاط واحد · ٤٠ درجة بعد الاعتماد
+          </div>
         </div>
-        <div className="hero-visual" aria-hidden="true">
-          <div className="hero-orbit" />
-          <div className="hero-orbit second" />
-          <div className="hero-float top">
-            <Sparkles size={20} />
-          </div>
-          <div className="hero-float bottom">
-            <Check size={18} />
-          </div>
-          <div className="hero-leaf">
-            <Leaf size={75} strokeWidth={1.2} />
-          </div>
-          <span className="hero-visual-caption">نترك أثرًا، معًا</span>
-          <span className="hero-plus a">+</span>
-          <span className="hero-plus b">+</span>
-        </div>
+        <AcademicSeal />
       </section>
       <section className="stats-grid student-stats">
         <Stat
-          icon={<Leaf />}
+          icon={<ClipboardCheck />}
           label="النشاط المطلوب"
           value="نشاط واحد"
           detail="خلال الفترة المعتمدة"
@@ -178,7 +180,7 @@ export function StudentDashboard() {
             <div className="current-activity">
               <div className="activity-summary">
                 <span className="activity-icon">
-                  <Leaf size={24} />
+                  <FileCheck2 size={24} />
                 </span>
                 <div>
                   <span className="mini-label">{r.category || 'طلب نشاط جديد'}</span>
@@ -214,8 +216,8 @@ export function StudentDashboard() {
           ) : (
             <Empty
               icon={<FileText size={33} />}
-              title="لسه ما سجّلتش نشاطك؟"
-              text="ابدأ بإضافة بيانات مشاركتك، وارفع المستندات المؤيدة لها. تقدر تحفظ مسودة وترجع تكملها في أي وقت."
+              title="ابدأ بتسجيل نشاطك"
+              text="أضف بيانات مشاركتك وارفع المستندات المؤيدة. يمكنك حفظ مسودة واستكمالها قبل التقديم."
               action={
                 <Link className="button secondary" to="/activity">
                   <Plus size={17} />
@@ -228,12 +230,12 @@ export function StudentDashboard() {
         <section className="card achievement-card">
           <div className="card-heading">
             <div>
-              <h2>رحلتك إلى الاعتماد</h2>
-              <p>مشاركة واحدة، أثر يستحق التوثيق</p>
+              <h2>استحقاق النشاط</h2>
+              <p>نشاط واحد خلال الفترة المعتمدة</p>
             </div>
           </div>
           <ProgressRing approved={approved} large />
-          <h3>{approved ? 'اكتمل إنجازك!' : 'إنجازك يستحق التوثيق'}</h3>
+          <h3>{approved ? 'اكتمل استحقاق النشاط' : 'في انتظار اعتماد النشاط'}</h3>
           <p>
             {approved
               ? 'تم اعتماد نشاطك وإضافة ٤٠ درجة كاملة.'
@@ -248,7 +250,7 @@ export function StudentDashboard() {
       <section className="card steps-card">
         <div className="card-heading">
           <div>
-            <span className="section-kicker">الطريق واضح</span>
+            <span className="section-kicker">دليل التقديم</span>
             <h2>من المشاركة إلى الاعتماد</h2>
           </div>
           <Link to="/guide" className="text-button">
@@ -726,7 +728,7 @@ export function ActivityPage() {
             <span className="tips-icon">
               <CircleHelp size={24} />
             </span>
-            <h3>قبل ما تبدأ</h3>
+            <h3>قبل التقديم</h3>
             <ul>
               <li>تأكد من صحة بيانات النشاط وتاريخ المشاركة.</li>
               <li>ارفع مستندًا واضحًا وقابلًا للقراءة.</li>
@@ -869,7 +871,7 @@ export function DocumentsPage() {
         <section className="card">
           <Empty
             icon={<FileText size={34} />}
-            title="الاستمارة هتكون جاهزة بعد التقديم"
+            title="تتاح الاستمارة بعد تقديم الطلب"
             text="استكمل بيانات النشاط وارفع المستندات، ثم أرسل الطلب لاستخراج الاستمارة."
             action={
               <Link className="button secondary" to="/activity">

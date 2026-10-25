@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
+import { browserExecutable } from '../server/browser';
 
 const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-browser-'));
 const output = path.resolve(
@@ -18,7 +19,7 @@ const server: Server = await new Promise((resolve) => {
 });
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+  executablePath: browserExecutable(),
   args: ['--no-sandbox', '--disable-dev-shm-usage'],
 });
 const errors: string[] = [];
@@ -56,16 +57,14 @@ try {
   await student
     .getByLabel('وصف مشاركتك')
     .fill('شاركت في تنظيم الحملة وتجهيز المواد ومساعدة فريق المتطوعين في استقبال المشاركين.');
-  await student
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'participation.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    });
+  await student.locator('input[type=file]').setInputFiles({
+    name: 'participation.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
   await student.getByRole('link', { name: 'participation.png', exact: true }).waitFor();
   await student.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
   await student.getByRole('checkbox').check();
@@ -139,7 +138,7 @@ try {
   await row.getByText('معطّل', { exact: true }).waitFor();
   await screenshot(admin, 'staff-management.png');
 
-  for (const width of [390, 768]) {
+  for (const width of [375, 390, 768, 1024, 1440]) {
     await student.setViewportSize({ width, height: 844 });
     for (const route of ['/', '/activity', '/documents', '/guide']) {
       await student.goto(base + route, { waitUntil: 'networkidle' });
@@ -149,13 +148,42 @@ try {
         `Horizontal overflow at ${width} ${route}`,
       );
       if (width === 390 && route === '/') await screenshot(student, 'student-mobile.png');
+      assert.equal(
+        await student
+          .locator('img')
+          .evaluateAll((images) =>
+            images.every(
+              (image) =>
+                image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
+            ),
+          ),
+        true,
+        'Brand images must load',
+      );
     }
   }
+  await student.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await student.locator('.mobile-institution').isVisible(), true);
+  assert.equal(
+    await student.locator('.route-surface').evaluate((el) => getComputedStyle(el).animationName),
+    'none',
+  );
   await student.getByRole('button', { name: 'فتح القائمة', exact: true }).click();
   await student
     .locator('.sidebar')
     .getByRole('button', { name: 'إغلاق القائمة', exact: true })
     .click();
+  const motionContext = await browser.newContext({
+    viewport: { width: 1440, height: 1080 },
+    reducedMotion: 'no-preference',
+  });
+  const motionPage = await motionContext.newPage();
+  await login(motionPage);
+  assert.notEqual(
+    await motionPage.locator('.route-surface').evaluate((el) => getComputedStyle(el).animationName),
+    'none',
+  );
+  await motionContext.close();
   assert.deepEqual(errors, []);
   writeFileSync(
     path.join(output, 'result.json'),

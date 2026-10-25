@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from '
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, faculty, hashPassword, now } from './db';
-import { renderForm } from './pdf';
+import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import type { ActivityRequest, Role, User } from '../src/types';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -430,7 +430,10 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     async (req, res) => {
       const r = getRequest(parseId(String(req.params.id)), res.locals.user);
       assert(r.version > 0, 409, 'أرسل الطلب أولًا لاستخراج الاستمارة.');
-      const filename = path.join(formDir, `${r.id}-v${r.version}.pdf`);
+      const filename = path.join(
+        formDir,
+        `${r.id}-v${r.version}-template${FORM_TEMPLATE_VERSION}.pdf`,
+      );
       if (!existsSync(filename)) {
         let job = pendingForms.get(filename);
         if (!job) {
@@ -620,14 +623,12 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       return;
     }
     if (error instanceof multer.MulterError) {
-      res
-        .status(400)
-        .json({
-          error:
-            error.code === 'LIMIT_FILE_SIZE'
-              ? 'حجم الملف يتجاوز ٨ ميجابايت.'
-              : 'تعذر رفع الملف. تحقق من عدد الملفات وحجمها.',
-        });
+      res.status(400).json({
+        error:
+          error.code === 'LIMIT_FILE_SIZE'
+            ? 'حجم الملف يتجاوز ٨ ميجابايت.'
+            : 'تعذر رفع الملف. تحقق من عدد الملفات وحجمها.',
+      });
       return;
     }
     if (error instanceof SyntaxError && 'body' in error) {
