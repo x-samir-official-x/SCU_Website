@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './styles.css';
 import './identity.css';
+import './motion.css';
 import { preparePreview } from './preview-bootstrap';
 
 preparePreview()

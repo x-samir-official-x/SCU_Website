@@ -41,6 +41,7 @@ import {
   useSession,
   useToast,
   useModalFocus,
+  usePresence,
 } from './lib';
 import { Attachments, EventTimeline, Stat } from './Student';
 import type { ActivityRequest, Staff, Status } from './types';
@@ -379,6 +380,7 @@ export function ReviewPage() {
   const [received, setReceived] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const confirmPresence = usePresence(confirm);
   const r = state.data?.request;
   useModalFocus(confirm, () => {
     if (!busy) setConfirm(false);
@@ -640,8 +642,12 @@ export function ReviewPage() {
           </div>
         </aside>
       </div>
-      {confirm && (
-        <div className="modal-backdrop" onClick={() => !busy && setConfirm(false)}>
+      {confirmPresence.render && (
+        <div
+          className="modal-backdrop"
+          data-state={confirmPresence.state}
+          onClick={() => !busy && setConfirm(false)}
+        >
           <section
             className="modal"
             role="dialog"
@@ -692,6 +698,7 @@ export function StaffPage() {
   const toast = useToast();
   const state = useData<{ staff: Staff[] }>('/admin/staff');
   const [show, setShow] = useState(false);
+  const showPresence = usePresence(show);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
@@ -819,8 +826,12 @@ export function StaffPage() {
           </div>
         )}
       </section>
-      {show && (
-        <div className="modal-backdrop" onClick={() => !busy && setShow(false)}>
+      {showPresence.render && (
+        <div
+          className="modal-backdrop"
+          data-state={showPresence.state}
+          onClick={() => !busy && setShow(false)}
+        >
           <form
             className="modal"
             onSubmit={create}

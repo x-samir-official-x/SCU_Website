@@ -94,26 +94,51 @@ export function useModalFocus(open: boolean, close: () => void) {
     };
   }, [open]);
 }
+/** يُبقي العنصر في الصفحة مدة قصيرة بعد إغلاقه ليأخذ انتقال الخروج حقه. */
+export function usePresence(show: boolean, exitMs = 180) {
+  const [mounted, setMounted] = useState(show);
+  useEffect(() => {
+    if (show) {
+      setMounted(true);
+      return;
+    }
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = setTimeout(() => setMounted(false), reduce ? 0 : exitMs);
+    return () => clearTimeout(timer);
+  }, [show, exitMs]);
+  return { render: show || mounted, state: show ? ('open' as const) : ('closed' as const) };
+}
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<{ message: string; error: boolean; id: number } | null>(null);
+  const [shown, setShown] = useState(false);
+  const presence = usePresence(shown, 220);
   useEffect(() => {
     if (!toast) return;
-    const timeout = setTimeout(() => setToast(null), 5000);
+    const timeout = setTimeout(() => setShown(false), 5000);
     return () => clearTimeout(timeout);
   }, [toast]);
   return (
     <ToastContext.Provider
-      value={(message, error = false) => setToast({ message, error, id: Date.now() })}
+      value={(message, error = false) => {
+        setToast({ message, error, id: Date.now() });
+        setShown(true);
+      }}
     >
       {children}
-      {toast && (
+      {presence.render && toast && (
         <div
+          key={toast.id}
+          data-state={presence.state}
           className={`toast ${toast.error ? 'error' : ''}`}
           role={toast.error ? 'alert' : 'status'}
         >
           {toast.error ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
           <span>{toast.message}</span>
-          <button className="icon-button" onClick={() => setToast(null)} aria-label="إغلاق التنبيه">
+          <button
+            className="icon-button"
+            onClick={() => setShown(false)}
+            aria-label="إغلاق التنبيه"
+          >
             <X size={16} />
           </button>
         </div>
