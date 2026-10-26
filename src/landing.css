@@ -2,45 +2,76 @@
   --lp-ink: #112e50;
   --lp-blue: #315cb2;
   --lp-muted: #56677b;
-  background: #fff;
+  --lp-glass: rgba(250, 253, 255, 0.8);
+  --lp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  background:
+    radial-gradient(ellipse 850px 530px at 10% 0, #deebfc85, transparent),
+    linear-gradient(#f5f8fc, #fff 760px);
   color: var(--lp-ink);
+  padding-top: 1px;
 }
 .lp-container {
   width: min(1224px, calc(100% - 112px));
   margin-inline: auto;
 }
 .lp-header {
-  border-bottom: 1px solid #e8edf2;
-  background: #fff;
-  position: relative;
-  z-index: 10;
+  position: sticky;
+  top: max(20px, env(safe-area-inset-top));
+  z-index: 30;
+  width: min(1280px, calc(100% - 64px));
+  margin: 24px auto 0;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow:
+    0 14px 45px -22px #234d8452,
+    0 0 0 1px #a3bdd21a,
+    inset 0 1px 0 #fff,
+    inset 0 -1px 0 #ffffff70;
 }
-.lp-nav {
+.lp-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(110deg, #ffffff55, transparent 32%, transparent 65%, #d9e8fb40), var(--lp-glass);
+  -webkit-backdrop-filter: saturate(150%) blur(20px);
+  backdrop-filter: saturate(150%) blur(20px);
+  z-index: -1;
+}
+.lp-header .lp-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 94px;
-  gap: 30px;
+  min-height: 80px;
+  width: 100%;
+  padding: 10px 17px 10px 25px;
+  gap: 24px;
 }
 .lp-wordmark {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 11px;
   font-weight: 700;
-  font-size: 19px;
+  font-size: 17px;
   line-height: 1.4;
+  border-radius: 30px;
 }
 .lp-wordmark > svg {
-  width: 47px;
-  height: 47px;
-  padding: 9px;
-  background: #edf3fa;
+  width: 46px;
+  height: 46px;
+  padding: 10px;
+  background: #e8eff9;
+  color: #204c7c;
+  border: 1px solid #fff;
   border-radius: 50%;
 }
 .lp-wordmark small {
   display: block;
   font-size: 12px;
-  color: var(--lp-muted);
+  color: #52667e;
   font-weight: 400;
   margin-top: 4px;
 }
@@ -48,33 +79,86 @@
   display: flex;
   flex-direction: row;
   padding: 0;
-  gap: 33px;
+  gap: 5px;
   font-size: 14px;
 }
 .lp-nav nav a {
-  padding-block: 13px;
-  border-bottom: 2px solid transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  color: #3e536e;
+  border: 0;
+  transition:
+    color 160ms,
+    transform 200ms var(--lp-ease);
 }
-.lp-nav nav a:hover {
-  border-color: var(--lp-ink);
+.lp-nav nav a::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #e1eaf6;
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity 180ms,
+    transform 260ms var(--lp-ease);
+}
+.lp-nav nav a > span {
+  position: relative;
+}
+.lp-nav nav a[aria-current] {
+  color: #163c6a;
+  font-weight: 700;
+}
+.lp-nav nav a[aria-current]::before {
+  opacity: 1;
+  transform: scale(1);
 }
 .lp-nav-login {
   display: flex;
-  gap: 14px;
+  gap: 15px;
   align-items: center;
+  justify-content: center;
   font-size: 14px;
   font-weight: 700;
-  min-height: 44px;
+  min-height: 46px;
+  padding: 10px 21px;
+  border-radius: 999px;
+  background: #142f50;
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 #ffffff24,
+    0 4px 10px #102b5014;
+  transition:
+    transform 200ms var(--lp-ease),
+    background-color 180ms;
+}
+.lp-nav-login > svg {
+  transition: transform 240ms var(--lp-ease);
+}
+.lp-nav-login:active {
+  transform: scale(0.97);
 }
 .lp-menu {
   display: none;
+}
+.landing-page :is(a, button, summary):focus-visible {
+  outline: 3px solid #3769b9;
+  outline-offset: 4px;
+}
+.landing-page :is(section, #main-content) {
+  scroll-margin-top: 130px;
 }
 .lp-hero {
   display: grid;
   grid-template-columns: 1.06fr 1fr;
   gap: 7%;
   align-items: center;
-  padding-block: 57px 75px;
+  padding-block: 72px 84px;
 }
 .lp-identities {
   display: block;
@@ -113,17 +197,23 @@
   gap: 20px;
   padding: 13px 24px;
   min-height: 52px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 15px;
   font-weight: 700;
   border: 1px solid transparent;
   transition:
     background-color 180ms,
-    transform 180ms;
+    transform 240ms var(--lp-ease);
   line-height: 1.5;
 }
 .lp-button:hover {
   transform: translateY(-2px);
+}
+.lp-button:active {
+  transform: translateY(0) scale(0.98);
+}
+.lp-button > svg {
+  transition: transform 240ms var(--lp-ease);
 }
 .lp-navy {
   background: #112e50;
@@ -171,14 +261,14 @@
   position: absolute;
   inset: -16px 34px 34px 0;
   border: 1px solid #ccdae6;
-  border-radius: 140px 16px 16px 16px;
-  transform: rotate(-4deg);
+  border-radius: 48px;
+  transform: rotate(-3deg);
 }
 .lp-photo-frame {
   position: relative;
   overflow: hidden;
   aspect-ratio: 1 / 1.07;
-  border-radius: 140px 12px 12px 12px;
+  border-radius: 36px;
   background: #d3e0d8;
 }
 .lp-photo-frame > img {
@@ -338,14 +428,14 @@
 }
 .public-post {
   min-width: 0;
-  animation: lp-post-in 220ms ease-out;
+  animation: lp-post-in 260ms var(--lp-ease);
 }
 .post-image {
   width: 100%;
   display: block;
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 20px;
   aspect-ratio: 1.37;
   padding: 0;
   text-align: right;
@@ -382,6 +472,7 @@
   display: grid;
   place-items: center;
   color: #112e50;
+  transition: transform 240ms var(--lp-ease);
 }
 .post-copy {
   padding-top: 18px;
@@ -575,6 +666,19 @@
   line-height: 1.95;
   padding-bottom: 24px;
 }
+.lp-faq-list details[open] p {
+  animation: lp-answer-in 220ms var(--lp-ease);
+}
+@keyframes lp-answer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .lp-closing {
   display: flex;
   justify-content: space-between;
@@ -630,6 +734,23 @@
   max-height: 90dvh;
   box-shadow: 0 20px 80px #102d4e33;
   color: #112e50;
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition:
+    opacity 180ms,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    display 240ms allow-discrete,
+    overlay 240ms allow-discrete;
+}
+.post-dialog[open] {
+  opacity: 1;
+  transform: none;
+}
+@starting-style {
+  .post-dialog[open] {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
 }
 .post-dialog::backdrop {
   background: #0b203ec9;
@@ -775,10 +896,10 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .lp-hero-copy {
-    animation: lp-hero-in 550ms ease-out both;
+    animation: lp-hero-in 480ms var(--lp-ease) both;
   }
   .lp-hero-art {
-    animation: lp-hero-in 650ms 100ms ease-out both;
+    animation: lp-hero-in 600ms 70ms var(--lp-ease) both;
   }
   html:has(.landing-page) {
     scroll-behavior: smooth;
@@ -813,49 +934,6 @@
 @media (max-width: 760px) {
   .lp-container {
     width: calc(100% - 40px);
-  }
-  .lp-nav {
-    min-height: 78px;
-    gap: 15px;
-  }
-  .lp-wordmark {
-    font-size: 16px;
-    gap: 8px;
-  }
-  .lp-wordmark small {
-    font-size: 10px;
-  }
-  .lp-wordmark > svg {
-    width: 38px;
-    height: 38px;
-    padding: 7px;
-  }
-  .lp-nav-login {
-    font-size: 12px;
-    gap: 5px;
-    margin-right: auto;
-  }
-  .lp-menu {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    order: 3;
-  }
-  .lp-nav nav {
-    display: none;
-    position: absolute;
-    top: 78px;
-    right: 0;
-    left: 0;
-    background: #fff;
-    border-bottom: 1px solid #dce4ed;
-    padding: 14px 24px;
-    box-shadow: 0 12px 20px #102d4e0d;
-  }
-  .lp-nav nav.is-open {
-    display: grid;
-    gap: 0;
   }
   .lp-hero {
     grid-template-columns: 1fr;
@@ -893,10 +971,10 @@
   }
   .lp-photo-frame {
     aspect-ratio: 1.18;
-    border-top-right-radius: 95px;
+    border-radius: 30px;
   }
   .lp-hero-art::before {
-    border-top-right-radius: 95px;
+    border-radius: 30px;
   }
   .lp-art-label {
     left: -18px;
@@ -1056,7 +1134,195 @@
     padding: 28px 24px;
   }
 }
+@media (hover: hover) and (pointer: fine) {
+  .lp-nav nav a:hover {
+    color: #163c6a;
+  }
+  .lp-nav nav a:hover::before {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  .lp-nav nav a[aria-current]:hover::before {
+    opacity: 1;
+  }
+  .lp-nav-login:hover {
+    background: #234c7b;
+  }
+  .lp-nav-login:hover > svg {
+    transform: translate(-2px, -2px);
+  }
+  .lp-button:hover > svg {
+    transform: translateX(-3px);
+  }
+  .post-image:hover .post-open {
+    transform: translate(-2px, -2px);
+  }
+}
+@media (max-width: 900px) {
+  .lp-header {
+    top: max(12px, env(safe-area-inset-top));
+    margin-top: 14px;
+    width: calc(100% - 28px);
+  }
+  .lp-header .lp-nav {
+    min-height: 72px;
+    padding: 8px 10px 8px 16px;
+    gap: 10px;
+  }
+  .lp-wordmark {
+    font-size: 15px;
+    gap: 8px;
+  }
+  .lp-wordmark small {
+    font-size: 10px;
+  }
+  .lp-wordmark > svg {
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+  }
+  .lp-nav-login {
+    font-size: 12px;
+    gap: 8px;
+    margin-right: auto;
+    padding: 10px 16px;
+    min-height: 44px;
+  }
+  .lp-menu {
+    display: grid;
+    place-items: center;
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    order: 3;
+    border-radius: 50%;
+    border: 1px solid #fff;
+    background: #e8eff899;
+  }
+  .lp-menu svg {
+    position: absolute;
+    transition:
+      opacity 140ms,
+      transform 220ms var(--lp-ease);
+  }
+  .lp-menu-bars {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .lp-menu-close {
+    opacity: 0;
+    transform: scale(0.8) rotate(-35deg);
+  }
+  .lp-menu.is-open .lp-menu-bars {
+    opacity: 0;
+    transform: scale(0.8) rotate(35deg);
+  }
+  .lp-menu.is-open .lp-menu-close {
+    opacity: 1;
+    transform: none;
+  }
+  .lp-nav nav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    left: 0;
+    padding: 12px;
+    max-height: calc(100dvh - 130px);
+    overflow-y: auto;
+    background: rgba(247, 251, 255, 0.94);
+    -webkit-backdrop-filter: saturate(150%) blur(18px);
+    backdrop-filter: saturate(150%) blur(18px);
+    border: 1px solid #ffffffeb;
+    border-radius: 28px;
+    box-shadow:
+      0 20px 45px -20px #1b416d4d,
+      inset 0 1px 0 #fff;
+    transform-origin: top left;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transition:
+      opacity 160ms,
+      transform 200ms var(--lp-ease),
+      visibility 0s linear 200ms;
+  }
+  .lp-nav nav.is-open {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 180ms,
+      transform 260ms var(--lp-ease),
+      visibility 0s;
+  }
+  .lp-nav nav a {
+    min-height: 50px;
+    padding: 13px 19px;
+    font-size: 15px;
+    border-radius: 17px;
+  }
+  .landing-page :is(section, #main-content) {
+    scroll-margin-top: 116px;
+  }
+}
+@media (max-width: 420px) {
+  .lp-header .lp-nav {
+    gap: 6px;
+    padding-left: 10px;
+  }
+  .lp-nav-login > svg {
+    display: none;
+  }
+  .lp-nav-login {
+    padding-inline: 13px;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lp-header::before,
+  .lp-nav nav {
+    background: #f7faff;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .lp-header::before,
+  .lp-nav nav {
+    background: #f7faff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: #a9bcd1;
+  }
+}
+@media (forced-colors: active) {
+  .lp-header,
+  .lp-nav nav {
+    background: Canvas;
+    border: 1px solid CanvasText;
+  }
+  .lp-nav nav a[aria-current] {
+    outline: 2px solid Highlight;
+    outline-offset: -3px;
+  }
+}
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-group(root) {
+  animation: none;
+}
+::view-transition-group(lp-post-green),
+::view-transition-group(lp-post-finance),
+::view-transition-group(lp-post-community) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
 @media (prefers-reduced-motion: reduce) {
+  .post-dialog,
+  .landing-page *::before,
+  .landing-page *::after,
   .landing-page *,
   .post-dialog * {
     animation: none !important;

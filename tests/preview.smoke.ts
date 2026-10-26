@@ -59,6 +59,20 @@ try {
     true,
   );
   await page.screenshot({ path: path.join(output, 'landing-desktop.png'), fullPage: true });
+  const header = page.locator('.lp-header');
+  const headerBox = (await header.boundingBox())!;
+  assert.ok(headerBox.y >= 20 && headerBox.width < 1440);
+  assert.equal(await header.evaluate((e) => getComputedStyle(e).position), 'sticky');
+  assert.ok(
+    (await header.evaluate((e) => getComputedStyle(e, '::before').backdropFilter)).includes('blur'),
+  );
+  await page.getByRole('navigation').getByRole('link', { name: 'خطوات التسجيل' }).click();
+  await page.locator('#landing-navigation a[href="#journey"][aria-current="location"]').waitFor();
+  assert.ok((await header.boundingBox())!.y >= 19);
+  assert.ok((await page.locator('#journey').boundingBox())!.y >= headerBox.height + 20);
+  await page.evaluate(() => window.scrollBy(0, 200));
+  await page.screenshot({ path: path.join(output, 'glass-nav-over-content.png') });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole('button', { name: 'عمل تطوعي', exact: true }).click();
   assert.equal(await page.locator('.public-post').count(), 1);
   await page.getByRole('button', { name: 'الكل', exact: true }).click();
@@ -66,13 +80,40 @@ try {
   assert.equal(await page.locator('details[open]').count(), 1);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
-  await page.getByRole('navigation').getByRole('link', { name: 'أنشطة الطلاب' }).click();
+  await page.getByRole('navigation').getByRole('link', { name: 'أنشطة الطلاب' }).focus();
+  await page.keyboard.press('Escape');
   assert.equal(
-    await page.locator('.lp-nav nav').evaluate((e) => getComputedStyle(e).display),
-    'none',
+    await page
+      .getByRole('button', { name: 'فتح قائمة التنقل' })
+      .evaluate((e) => e === document.activeElement),
+    true,
   );
+  await page.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
+  await page.getByRole('heading', { level: 1 }).click();
+  assert.equal(
+    await page.getByRole('button', { name: 'فتح قائمة التنقل' }).getAttribute('aria-expanded'),
+    'false',
+  );
+  await page.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
+  await page.screenshot({ path: path.join(output, 'glass-mobile-menu.png') });
+  await page.getByRole('navigation').getByRole('link', { name: 'أنشطة الطلاب' }).click();
+  await page.locator('.lp-nav nav').waitFor({ state: 'hidden' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: path.join(output, 'landing-mobile.png'), fullPage: true });
+  for (const width of [320, 375, 768, 900, 901, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+      `Landing overflow at ${width}`,
+    );
+  }
+  await page.emulateMedia({ contrast: 'more' });
+  assert.equal(
+    await header.evaluate((e) => getComputedStyle(e, '::before').backdropFilter),
+    'none',
+  );
+  await page.emulateMedia({ contrast: 'no-preference' });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'اقرأ مشاركة مساحة خضراء… بأيدينا' }).click();
   await page.getByRole('heading', { name: 'تسجيل الدخول', exact: true }).waitFor();
@@ -173,6 +214,39 @@ try {
   await other.getByRole('button', { name: 'إغلاق المشاركة' }).press('Escape');
   assert.equal(await other.locator('dialog[open]').count(), 0);
   await isolated.close();
+  const animatedContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: 'no-preference',
+  });
+  const animated = await animatedContext.newPage();
+  animated.on('pageerror', (e) => errors.push(e.message));
+  await animated.goto(base, { waitUntil: 'networkidle' });
+  await animated.getByRole('button', { name: 'عمل تطوعي', exact: true }).click();
+  await animated.locator('.public-post').nth(1).waitFor({ state: 'detached' });
+  await animated.getByRole('button', { name: 'الكل', exact: true }).click();
+  await animated.locator('.public-post').nth(2).waitFor();
+  await animated.getByRole('button', { name: 'خدمة مجتمعية', exact: true }).click();
+  await animated.locator('.public-post h3').getByText('معًا، نصل إلى أكثر').waitFor();
+  assert.equal(await animated.locator('.public-post').count(), 1);
+  await animated.setViewportSize({ width: 390, height: 844 });
+  await animated.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
+  await animated.getByRole('navigation').waitFor();
+  await animated.getByRole('navigation').evaluate(async (e) => {
+    await Promise.all(e.getAnimations().map((animation) => animation.finished.catch(() => {})));
+  });
+  await animated.screenshot({ path: path.join(output, 'glass-mobile-menu-motion.png') });
+  await animated.keyboard.press('Escape');
+  await animated.getByRole('navigation').waitFor({ state: 'hidden' });
+  // Crossing the breakpoint must not reopen a stale mobile disclosure.
+  await animated.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
+  await animated.setViewportSize({ width: 1024, height: 844 });
+  await animated.getByRole('button', { name: 'فتح قائمة التنقل' }).waitFor({ state: 'hidden' });
+  await animated.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await animated.getByRole('button', { name: 'فتح قائمة التنقل' }).getAttribute('aria-expanded'),
+    'false',
+  );
+  await animatedContext.close();
   assert.deepEqual(errors, []);
   writeFileSync(
     path.join(output, 'result.json'),
@@ -182,6 +256,9 @@ try {
         server: 'static files only',
         checks: [
           'public landing, sample filtering, mobile menu and FAQ',
+          'floating glass, section tracking, Escape/outside dismissal and focus restoration',
+          '320–1440px layout and increased-contrast glass fallback',
+          'motion-enabled native gallery transitions and reversible mobile disclosure',
           'new browser-local student registration and role boundaries',
           'authenticated sample dialog and Escape dismissal',
           'service worker initialization',

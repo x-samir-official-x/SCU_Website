@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { flushSync } from 'react-dom';
 import {
   ArrowDown,
   ArrowLeft,
@@ -7,15 +8,14 @@ import {
   Check,
   ChevronDown,
   FileText,
-  GraduationCap,
   Leaf,
-  Menu,
   ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
 import { api, useSession } from './lib';
 import './landing.css';
+import { LandingNav } from './LandingNav';
 
 const posts = [
   {
@@ -75,6 +75,18 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
   const active = posts.find((p) => p.id === selected);
   const navigate = useNavigate();
   const { session } = useSession();
+  function chooseFilter(value: string, keyboard: boolean) {
+    if (value === filter) return;
+    if (
+      !keyboard &&
+      document.startViewTransition &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      const transition = document.startViewTransition(() => flushSync(() => setFilter(value)));
+      // A rapid second selection may supersede a snapshot transition.
+      transition.finished.catch(() => {});
+    } else setFilter(value);
+  }
   function open(id: string) {
     if (!session.user) {
       navigate('/login', { state: { from: '/community' } });
@@ -87,7 +99,11 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
     <>
       <div className="activity-filters" aria-label="تصفية نماذج الأنشطة">
         {['الكل', 'عمل تطوعي', 'مبادرة طلابية', 'خدمة مجتمعية'].map((item) => (
-          <button key={item} aria-pressed={filter === item} onClick={() => setFilter(item)}>
+          <button
+            key={item}
+            aria-pressed={filter === item}
+            onClick={(event) => chooseFilter(item, event.detail === 0)}
+          >
             {item}
           </button>
         ))}
@@ -96,7 +112,11 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
         {posts
           .filter((p) => filter === 'الكل' || p.category === filter)
           .map((post) => (
-            <article className="public-post" key={post.id}>
+            <article
+              className="public-post"
+              key={post.id}
+              style={{ viewTransitionName: `lp-post-${post.id}` }}
+            >
               <button
                 className={`post-image ${post.kind}`}
                 onClick={() => open(post.id)}
@@ -182,43 +202,12 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
 
 export function Landing() {
   const { session } = useSession();
-  const [menu, setMenu] = useState(false);
   useEffect(() => {
     document.title = 'بوابة النشاط الطلابي | كلية التجارة — جامعة قناة السويس';
   }, []);
   return (
     <div className="landing-page">
-      <header className="lp-header">
-        <div className="lp-container lp-nav">
-          <Link to="/" className="lp-wordmark">
-            <GraduationCap size={27} />
-            <span>
-              كلية التجارة<small>بوابة النشاط الطلابي</small>
-            </span>
-          </Link>
-          <button
-            className="lp-menu"
-            aria-label={menu ? 'إغلاق قائمة التنقل' : 'فتح قائمة التنقل'}
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
-          >
-            {menu ? <X /> : <Menu />}
-          </button>
-          <nav
-            aria-label="التنقل الرئيسي"
-            className={menu ? 'is-open' : ''}
-            onClick={() => setMenu(false)}
-          >
-            <a href="#activities">أنشطة الطلاب</a>
-            <a href="#journey">خطوات التسجيل</a>
-            <a href="#questions">الأسئلة الشائعة</a>
-          </nav>
-          <Link to={session.user ? '/dashboard' : '/login'} className="lp-nav-login">
-            {session.user ? 'حسابي' : 'تسجيل الدخول'}
-            <ArrowUpLeft size={17} />
-          </Link>
-        </div>
-      </header>
+      <LandingNav />
       <main id="main-content" tabIndex={-1}>
         <section className="lp-hero lp-container">
           <div className="lp-hero-copy">

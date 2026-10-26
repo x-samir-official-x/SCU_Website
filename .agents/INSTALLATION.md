@@ -24,3 +24,13 @@ On Windows use `python` if `python3` is unavailable. Read the skill instructions
 - `fixing-motion-performance`: ibelick/ui-skills, 59193a75432e5f41c6980f53b9e6a7bd56919947, MIT (included license).
 
 Selection and usage: docs/DESIGN.md. No deployment skills or credential bindings were activated.
+
+## Floating glass navigation and motion refinement
+
+Installed from reviewed GitHub source at fixed commits, with MIT licenses and source records inside each skill:
+
+- `apple-liquid-glass`: [xenitV1/liquid-glass-skill](https://github.com/xenitV1/liquid-glass-skill), `8cf508b2e5474c80d4ad6a649186f505b8548307`. Applied tinted glass, static rim lighting, separation of navigation from content, and transparency/contrast fallbacks. Its refraction JavaScript is retained as reference only and is not imported by the application.
+- `design-motion-principles`: [kylezantos/design-motion-principles](https://github.com/kylezantos/design-motion-principles), `4a9ca879f24a361f4dca4174fe2da0f67b5ddee3`. Applied Create workflow with production polish as the primary lens and fast, restrained navigation as the secondary lens. Context and scope come from the user's explicit floating glass navigation request.
+- `fixing-accessibility`: [ibelick/ui-skills](https://github.com/ibelick/ui-skills), `59193a75432e5f41c6980f53b9e6a7bd56919947`. Applied disclosure semantics, Escape dismissal, focus restoration, touch targets, contrast, and reduced-motion behavior.
+
+The selection followed GitHub searches for glass and animation skills, checking scope and license before installation. Files were downloaded through GitHub's API; upstream installers and scripts were not executed. Existing UI/UX Pro Max, Frontend Design, and Fixing Motion Performance remain in use. No animation dependency was added to the application.
