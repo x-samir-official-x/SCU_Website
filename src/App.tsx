@@ -34,6 +34,7 @@ import { StudentDashboard, ActivityPage, DocumentsPage } from './Student';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
 
 import { BrandMark as Mark, AcademicSeal, LoginProcess } from './Brand';
+import { Landing, Register, ActivityGallery } from './Landing';
 
 function Login({ session, refresh }: { session: Session; refresh: () => Promise<void> }) {
   const [email, setEmail] = useState('');
@@ -42,6 +43,8 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
   const [error, setError] = useState('');
   const [role, setRole] = useState<Role>('student');
   const [accounts, setAccounts] = useState<{ role: Role; email: string; password: string }[]>([]);
+  const navigate = useNavigate();
+  const location = useLocation();
   useEffect(() => {
     if (session.demo)
       api('/demo-accounts')
@@ -64,6 +67,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
     try {
       await api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       await refresh();
+      navigate(location.state?.from === '/community' ? '/community' : '/dashboard');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -71,7 +75,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
     }
   }
   return (
-    <div className="login-page">
+    <div className="login-page" id="main-content" tabIndex={-1}>
       <section className="login-story">
         <Mark light />
         <div className="login-story-body">
@@ -99,6 +103,10 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
           <span className="period-tag">{session.faculty.period}</span>
         </div>
         <div className="login-form-wrap">
+          <Link className="lp-login-back" to="/welcome">
+            <ArrowLeft size={16} />
+            العودة إلى الصفحة الرئيسية
+          </Link>
           <span className="section-kicker">أهلًا بعودتك</span>
           <h2>تسجيل الدخول</h2>
           <p className="muted">سجّل دخولك للوصول إلى حسابك ومتابعة نشاطك.</p>
@@ -163,6 +171,9 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
               <ArrowLeft size={18} />
             </button>
           </form>
+          <p className="lp-login-register">
+            أول مرة تزورنا؟ <Link to="/register">إنشاء حساب جديد</Link>
+          </p>
           <div className="login-security">
             <ShieldCheck size={17} />
             <p>الدخول الرسمي للطلاب يُفعّل بعد اعتماد آلية التحقق والربط مع الجامعة.</p>
@@ -196,19 +207,21 @@ function Shell() {
   const isStudent = user.role === 'student';
   const nav = isStudent
     ? [
-        { path: '/', label: 'الرئيسية', icon: LayoutDashboard },
+        { path: '/dashboard', label: 'الرئيسية', icon: LayoutDashboard },
         { path: '/activity', label: 'نشاطي', icon: ClipboardCheck },
         { path: '/documents', label: 'المستندات والاستمارة', icon: FileText },
+        { path: '/community', label: 'أنشطة الطلاب', icon: Users },
+        { path: '/welcome', label: 'واجهة البوابة', icon: GraduationCap },
       ]
     : [
-        { path: '/', label: 'نظرة عامة', icon: LayoutDashboard },
+        { path: '/dashboard', label: 'نظرة عامة', icon: LayoutDashboard },
         { path: '/requests', label: 'طلبات الأنشطة', icon: ClipboardCheck },
         ...(user.role === 'admin'
           ? [{ path: '/staff', label: 'إدارة الموظفين', icon: Users }]
           : []),
       ];
   const title =
-    location.pathname === '/'
+    location.pathname === '/dashboard'
       ? isStudent
         ? 'لوحة الطالب'
         : 'لوحة الإدارة'
@@ -220,8 +233,8 @@ function Shell() {
   async function logout() {
     try {
       await api('/logout', { method: 'POST', body: '{}' });
-      await refresh();
       navigate('/');
+      await refresh();
     } catch (e) {
       toast((e as Error).message, true);
     }
@@ -382,7 +395,10 @@ function Shell() {
         <main className="main-content" id="main-content" tabIndex={-1}>
           <div className="route-surface" key={location.pathname}>
             <Routes>
-              <Route path="/" element={isStudent ? <StudentDashboard /> : <StaffDashboard />} />
+              <Route
+                path="/dashboard"
+                element={isStudent ? <StudentDashboard /> : <StaffDashboard />}
+              />
               {isStudent ? (
                 <>
                   <Route path="/activity" element={<ActivityPage />} />
@@ -396,7 +412,25 @@ function Shell() {
                 </>
               )}
               <Route path="/guide" element={<Guide />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route
+                path="/community"
+                element={
+                  <>
+                    <div className="page-heading">
+                      <div>
+                        <span className="section-kicker">مجتمع كلية التجارة</span>
+                        <h1>أنشطة الطلاب</h1>
+                        <p>
+                          نماذج توضيحية للمشاركات. النشر الحقيقي يتطلب موافقة الطالب ومراجعة
+                          المحتوى.
+                        </p>
+                      </div>
+                    </div>
+                    <ActivityGallery full />
+                  </>
+                }
+              />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </div>
           <footer className="page-footer">
@@ -495,7 +529,25 @@ export default function App() {
         <a href="#main-content" className="skip-link">
           انتقل إلى المحتوى
         </a>
-        {session.user ? <Shell /> : <Login session={session} refresh={refresh} />}
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/welcome" element={<Landing />} />
+          <Route
+            path="/login"
+            element={
+              session.user ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Login session={session} refresh={refresh} />
+              )
+            }
+          />
+          <Route
+            path="/register"
+            element={session.user ? <Navigate to="/dashboard" replace /> : <Register />}
+          />
+          <Route path="/*" element={session.user ? <Shell /> : <Navigate to="/login" replace />} />
+        </Routes>
       </SessionContext.Provider>
     </ToastProvider>
   );

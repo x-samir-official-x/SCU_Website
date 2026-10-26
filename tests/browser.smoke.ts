@@ -31,7 +31,7 @@ const context = () =>
   });
 async function login(page: Page, role = 'طالب') {
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: role, exact: true }).click();
   await page.getByRole('button', { name: 'تعبئة بيانات الحساب التجريبي' }).click();
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
@@ -140,14 +140,14 @@ try {
 
   for (const width of [375, 390, 768, 1024, 1440]) {
     await student.setViewportSize({ width, height: 844 });
-    for (const route of ['/', '/activity', '/documents', '/guide']) {
+    for (const route of ['/', '/dashboard', '/activity', '/documents', '/guide']) {
       await student.goto(base + route, { waitUntil: 'networkidle' });
       assert.equal(
         await student.evaluate(() => document.documentElement.scrollWidth > innerWidth),
         false,
         `Horizontal overflow at ${width} ${route}`,
       );
-      if (width === 390 && route === '/') await screenshot(student, 'student-mobile.png');
+      if (width === 390 && route === '/dashboard') await screenshot(student, 'student-mobile.png');
       assert.equal(
         await student
           .locator('img')

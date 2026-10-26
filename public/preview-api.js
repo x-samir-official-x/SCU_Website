@@ -187,6 +187,44 @@ async function handle(request, url) {
             password: 'Demo2026!',
           })),
         });
+      if (route === '/register' && method === 'POST') {
+        const name = String(input.name || '').trim();
+        const email = String(input.email || '')
+          .trim()
+          .toLowerCase();
+        const studentId = String(input.student_id || '').trim();
+        const password = String(input.password || '');
+        const years = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'];
+        fail(name.length >= 3 && name.length <= 100, 400, 'اكتب اسمًا من ٣ إلى ١٠٠ حرف.');
+        fail(
+          email.length <= 160 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+          400,
+          'راجع البريد الإلكتروني.',
+        );
+        fail(/^[0-9]{4,20}$/.test(studentId), 400, 'راجع الرقم الجامعي.');
+        fail(password.length >= 8 && password.length <= 100, 400, 'كلمة المرور من ٨ إلى ١٠٠ حرف.');
+        fail(years.includes(input.year), 400, 'اختر الفرقة الدراسية.');
+        fail(
+          !state.users.some((u) => u.email.toLowerCase() === email || u.student_id === studentId),
+          409,
+          'البريد الإلكتروني أو الرقم الجامعي مستخدم بالفعل.',
+        );
+        const id = state.nextUser++;
+        state.users.push({
+          id,
+          name,
+          email,
+          student_id: studentId,
+          password,
+          year: input.year,
+          national_id: null,
+          role: 'student',
+          active: 1,
+          created_at: stamp(),
+        });
+        state.activeUser = id;
+        return json({ ok: true }, 201);
+      }
       if (route === '/login' && method === 'POST') {
         const found = state.users.find(
           (u) =>

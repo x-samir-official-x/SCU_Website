@@ -6,7 +6,7 @@
   "installCommand": "npm ci",
   "rewrites": [
     {
-      "source": "/((?!assets/|fonts/|brand/|favicon.svg|preview-api.js|preview-config.json).*)",
+      "source": "/((?!assets/|fonts/|brand/|photos/|favicon.svg|preview-api.js|preview-config.json).*)",
       "destination": "/index.html"
     }
   ],

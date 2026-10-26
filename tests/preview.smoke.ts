@@ -31,6 +31,7 @@ const page = await context.newPage();
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 async function login(role = 'طالب') {
+  await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: role, exact: true }).click();
   await page.getByRole('button', { name: 'تعبئة بيانات الحساب التجريبي' }).click();
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
@@ -39,10 +40,42 @@ async function login(role = 'طالب') {
 }
 async function logout() {
   await page.locator('.sidebar').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
-  await page.getByRole('heading', { name: 'تسجيل الدخول', exact: true }).waitFor();
+  await page.locator('.lp-hero h1').waitFor();
 }
 try {
   await page.goto(base, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  assert.equal(await page.locator('.public-post').count(), 3);
+  await page.evaluate(() => document.fonts.ready);
+  assert.equal(
+    await page
+      .locator('.landing-page img')
+      .evaluateAll((images) =>
+        images.every(
+          (image) =>
+            (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0,
+        ),
+      ),
+    true,
+  );
+  await page.screenshot({ path: path.join(output, 'landing-desktop.png'), fullPage: true });
+  await page.getByRole('button', { name: 'عمل تطوعي', exact: true }).click();
+  assert.equal(await page.locator('.public-post').count(), 1);
+  await page.getByRole('button', { name: 'الكل', exact: true }).click();
+  await page.getByText('هل رفع النشاط يعني اعتماده؟', { exact: true }).click();
+  assert.equal(await page.locator('details[open]').count(), 1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
+  await page.getByRole('navigation').getByRole('link', { name: 'أنشطة الطلاب' }).click();
+  assert.equal(
+    await page.locator('.lp-nav nav').evaluate((e) => getComputedStyle(e).display),
+    'none',
+  );
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.screenshot({ path: path.join(output, 'landing-mobile.png'), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'اقرأ مشاركة مساحة خضراء… بأيدينا' }).click();
+  await page.getByRole('heading', { name: 'تسجيل الدخول', exact: true }).waitFor();
   await login();
   assert.equal(
     await page
@@ -60,16 +93,14 @@ try {
   await page
     .getByLabel('وصف مشاركتك')
     .fill('اختبار تقديم نشاط وحفظ مستنداته ومراجعته في وضع المعاينة التفاعلية.');
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'preview.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'preview.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
   await page.getByRole('link', { name: 'preview.png', exact: true }).waitFor();
   await page.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
   await page.getByRole('checkbox').check();
@@ -121,6 +152,26 @@ try {
     await other.evaluate(async () => (await (await fetch('/api/session')).json()).user),
     null,
   );
+  await other.getByRole('link', { name: 'إنشاء حساب جديد', exact: true }).click();
+  await other.getByLabel('الاسم الكامل').fill('طالب تجربة جديد');
+  await other.getByLabel('الرقم الجامعي').fill('20269999');
+  await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
+  await other.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
+  await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');
+  await other.getByRole('button', { name: 'إنشاء الحساب التجريبي' }).click();
+  await other.locator('.sidebar').waitFor();
+  const registered = await other.evaluate(
+    async () => (await (await fetch('/api/session')).json()).user,
+  );
+  assert.equal(registered.role, 'student');
+  assert.equal(registered.student_id, '20269999');
+  const forbidden = await other.evaluate(async () => (await fetch('/api/admin/staff')).status);
+  assert.equal(forbidden, 403);
+  await other.getByRole('link', { name: 'أنشطة الطلاب', exact: true }).click();
+  await other.getByRole('button', { name: 'اقرأ مشاركة مساحة خضراء… بأيدينا' }).click();
+  await other.locator('dialog[open]').waitFor();
+  await other.getByRole('button', { name: 'إغلاق المشاركة' }).press('Escape');
+  assert.equal(await other.locator('dialog[open]').count(), 0);
   await isolated.close();
   assert.deepEqual(errors, []);
   writeFileSync(
@@ -130,6 +181,9 @@ try {
         status: 'passed',
         server: 'static files only',
         checks: [
+          'public landing, sample filtering, mobile menu and FAQ',
+          'new browser-local student registration and role boundaries',
+          'authenticated sample dialog and Escape dismissal',
           'service worker initialization',
           'local IndexedDB draft and file upload',
           'submission',
