@@ -1,9 +1,11 @@
+:root {
+  --lp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
 .landing-page {
   --lp-ink: #112e50;
   --lp-blue: #315cb2;
   --lp-muted: #56677b;
   --lp-glass: rgba(250, 253, 255, 0.8);
-  --lp-ease: cubic-bezier(0.22, 1, 0.36, 1);
   background:
     radial-gradient(ellipse 850px 530px at 10% 0, #deebfc85, transparent),
     linear-gradient(#f5f8fc, #fff 760px);
