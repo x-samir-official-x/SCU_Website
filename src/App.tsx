@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -27,6 +27,7 @@ import {
   setCsrf,
   ToastProvider,
   useSession,
+  usePresence,
   useToast,
 } from './lib';
 import type { Role, Session } from './types';
@@ -199,11 +200,29 @@ function Shell() {
   const [accountOpen, setAccountOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const accountRef = useRef<HTMLDivElement>(null);
+  const scrim = usePresence(open);
+  const accountMenu = usePresence(accountOpen, 150);
   useEffect(() => {
     setOpen(false);
     setAccountOpen(false);
     document.getElementById('main-content')?.focus({ preventScroll: true });
   }, [location.pathname]);
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!accountRef.current?.contains(e.target as Node)) setAccountOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAccountOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountOpen]);
   const isStudent = user.role === 'student';
   const nav = isStudent
     ? [
@@ -241,9 +260,10 @@ function Shell() {
   }
   return (
     <div className="app-shell">
-      {open && (
+      {scrim.render && (
         <button
           className="sidebar-scrim"
+          data-state={scrim.state}
           onClick={() => setOpen(false)}
           aria-label="إغلاق القائمة"
         />
@@ -344,7 +364,7 @@ function Shell() {
               <Bell size={19} />
             </Link>
             <span className="topbar-divider" />
-            <div className="account-wrap">
+            <div className="account-wrap" ref={accountRef}>
               <button
                 className="account-button"
                 onClick={() => setAccountOpen(!accountOpen)}
@@ -354,8 +374,8 @@ function Shell() {
                 <span>{user.name.split(' ')[0]}</span>
                 <ChevronLeft size={14} />
               </button>
-              {accountOpen && (
-                <div className="account-menu">
+              {accountMenu.render && (
+                <div className="account-menu" data-state={accountMenu.state}>
                   <strong>{user.name}</strong>
                   <small dir="ltr">{user.email}</small>
                   <button onClick={logout}>
@@ -505,6 +525,13 @@ function Guide() {
     </>
   );
 }
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (!hash) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname, hash]);
+  return null;
+}
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState('');
@@ -526,6 +553,7 @@ export default function App() {
   return (
     <ToastProvider>
       <SessionContext.Provider value={{ session, refresh }}>
+        <ScrollToTop />
         <a href="#main-content" className="skip-link">
           انتقل إلى المحتوى
         </a>

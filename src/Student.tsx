@@ -42,6 +42,7 @@ import {
   useSession,
   useToast,
   useModalFocus,
+  usePresence,
 } from './lib';
 import type { ActivityRequest, Attachment } from './types';
 import { AcademicSeal } from './Brand';
@@ -399,6 +400,7 @@ export function ActivityPage() {
   });
   const [busy, setBusy] = useState('');
   const [confirm, setConfirm] = useState(false);
+  const confirmPresence = usePresence(confirm);
   const [declared, setDeclared] = useState(false);
   const [validation, setValidation] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -765,8 +767,12 @@ export function ActivityPage() {
           )}
         </aside>
       </div>
-      {confirm && (
-        <div className="modal-backdrop" onClick={() => !busy && setConfirm(false)}>
+      {confirmPresence.render && (
+        <div
+          className="modal-backdrop"
+          data-state={confirmPresence.state}
+          onClick={() => !busy && setConfirm(false)}
+        >
           <section
             className="modal"
             role="dialog"

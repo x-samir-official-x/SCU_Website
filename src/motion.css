@@ -1,0 +1,254 @@
+/*
+  motion.css — طبقة الحركة لبوابة النشاط الطلابي
+  تُحمَّل بعد identity.css. حذف الاستيراد من main.tsx يرجّع السلوك السابق.
+  القواعد: transform وopacity فقط، دخول أطول من الخروج، وكل شيء داخل no-preference.
+*/
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes m-rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+  }
+  @keyframes m-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes m-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes m-pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.97);
+    }
+  }
+  @keyframes m-pop-out {
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  @keyframes m-menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.97);
+    }
+  }
+  @keyframes m-menu-out {
+    to {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
+  @keyframes m-toast-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 16px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+  @keyframes m-toast-out {
+    from {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    to {
+      opacity: 0;
+      transform: translate(-50%, 10px);
+    }
+  }
+  @keyframes m-ring {
+    from {
+      stroke-dashoffset: 314.16;
+    }
+  }
+
+  /* ---------- ترتيب الظهور (stagger) ---------- */
+  .route-surface > :nth-child(2),
+  .login-story-body > :nth-child(2),
+  .login-form-wrap > :nth-child(2),
+  .lp-hero-copy > :nth-child(2) {
+    --i: 1;
+  }
+  .route-surface > :nth-child(3),
+  .login-story-body > :nth-child(3),
+  .login-form-wrap > :nth-child(3),
+  .lp-hero-copy > :nth-child(3) {
+    --i: 2;
+  }
+  .route-surface > :nth-child(4),
+  .login-story-body > :nth-child(4),
+  .login-form-wrap > :nth-child(4),
+  .lp-hero-copy > :nth-child(4) {
+    --i: 3;
+  }
+  .route-surface > :nth-child(5),
+  .login-form-wrap > :nth-child(5),
+  .lp-hero-copy > :nth-child(5) {
+    --i: 4;
+  }
+  .route-surface > :nth-child(6),
+  .login-form-wrap > :nth-child(6),
+  .lp-hero-copy > :nth-child(6) {
+    --i: 5;
+  }
+  .route-surface > :nth-child(n + 7),
+  .login-form-wrap > :nth-child(n + 7) {
+    --i: 6;
+  }
+
+  /* ---------- انتقال الصفحات داخل اللوحة ---------- */
+  /* العناصر الجديدة تتحرك عند إدخالها، سواء ظهرت فورًا أو بعد انتهاء التحميل */
+  .route-surface {
+    animation: m-fade-in 220ms ease-out;
+  }
+  .route-surface > :not(.modal-backdrop):not(.loading) {
+    animation: m-rise 380ms var(--ease-out) calc(var(--i, 0) * 55ms) backwards;
+  }
+  /* لا يظهر المؤشر إلا لو طال التحميل، فلا يومض في الاتصال السريع */
+  .loading {
+    animation: m-fade-in 240ms ease-out 200ms backwards;
+  }
+
+  /* ---------- الدخول ---------- */
+  .login-page {
+    animation: m-fade-in 300ms ease-out backwards;
+  }
+  .login-story-body > *,
+  .login-form-wrap > * {
+    animation: m-rise 520ms var(--ease-out) calc(var(--i, 0) * 60ms + 80ms) backwards;
+  }
+
+  /* ---------- الصفحة العامة ---------- */
+  .lp-hero-copy {
+    animation: none;
+  }
+  .lp-hero-copy > * {
+    animation: m-rise 700ms var(--ease-out) calc(var(--i, 0) * 80ms + 60ms) backwards;
+  }
+  .lp-hero-art {
+    animation: m-rise 850ms var(--ease-out) 200ms backwards;
+  }
+  .lp-form-note {
+    animation: m-pop-in 600ms var(--ease-out) 850ms backwards;
+  }
+  .lp-nav nav.is-open {
+    animation: m-menu-in 240ms var(--ease-out);
+  }
+  .lp-faq-list details[open] p {
+    animation: m-fade-in 280ms ease-out;
+  }
+  .post-dialog[open] {
+    animation: m-pop-in 280ms var(--ease-out);
+  }
+  .post-dialog[open]::backdrop {
+    animation: m-fade-in 220ms ease-out;
+  }
+  /* فتح الأسئلة الشائعة بارتفاع متدرج في المتصفحات الداعمة */
+  @supports selector(::details-content) {
+    .lp-faq-list details {
+      interpolate-size: allow-keywords;
+    }
+    .lp-faq-list details::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size 320ms var(--ease-out),
+        content-visibility 320ms allow-discrete;
+    }
+    .lp-faq-list details[open]::details-content {
+      block-size: auto;
+    }
+  }
+  /* ظهور الأقسام أثناء التمرير بدون JavaScript */
+  @supports (animation-timeline: view()) {
+    .lp-section-heading,
+    .lp-steps > *,
+    .lp-faq-list details,
+    .lp-closing > * {
+      animation: m-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+  }
+
+  /* ---------- الشريط الجانبي على الموبايل ---------- */
+  @media (max-width: 1000px) {
+    .sidebar {
+      visibility: hidden;
+      transition:
+        transform 360ms var(--ease-out),
+        visibility 0s linear 360ms;
+    }
+    .sidebar.open {
+      visibility: visible;
+      transition-delay: 0s;
+      box-shadow: -18px 0 60px #06172e33;
+    }
+  }
+  .sidebar-scrim {
+    animation: m-fade-in 260ms ease-out;
+  }
+  .sidebar-scrim[data-state='closed'] {
+    animation: m-fade-out 200ms ease-in forwards;
+  }
+
+  /* ---------- القوائم والنوافذ والتنبيهات ---------- */
+  .account-menu {
+    transform-origin: top right;
+    animation: m-menu-in 200ms var(--ease-out);
+  }
+  [dir='rtl'] .account-menu,
+  html[dir='rtl'] .account-menu {
+    transform-origin: top left;
+  }
+  .account-menu[data-state='closed'] {
+    animation: m-menu-out 140ms var(--ease-in) forwards;
+  }
+  .modal-backdrop {
+    animation: m-fade-in 220ms ease-out;
+  }
+  .modal-backdrop[data-state='closed'] {
+    animation: m-fade-out 160ms ease-in forwards;
+  }
+  .modal {
+    animation: m-pop-in 300ms var(--ease-out);
+  }
+  .modal-backdrop[data-state='closed'] .modal {
+    animation: m-pop-out 160ms var(--ease-in) forwards;
+  }
+  .toast {
+    animation: m-toast-in 320ms var(--ease-out);
+  }
+  .toast[data-state='closed'] {
+    animation: m-toast-out 200ms var(--ease-in) forwards;
+  }
+
+  /* ---------- عناصر صغيرة ---------- */
+  .ring-value {
+    animation: m-ring 1100ms var(--ease-out) 300ms backwards;
+  }
+  .nav-item {
+    transition:
+      background-color 200ms var(--ease-out),
+      color 200ms var(--ease-out);
+  }
+  .nav-chevron {
+    transition: transform 200ms var(--ease-out);
+  }
+  .nav-item:hover .nav-chevron {
+    transform: translateX(-3px);
+  }
+}
