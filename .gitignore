@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-preview/
+.vercel/
 .env
 .env.*
 !.env.example
@@ -7,3 +9,5 @@ dist/
 coverage/
 test-results/
 *.log
+__pycache__/
+*.py[cod]

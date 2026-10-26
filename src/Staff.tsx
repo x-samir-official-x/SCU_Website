@@ -1,3 +1,4 @@
+import { isBrowserPreview } from './preview-bootstrap';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -121,9 +122,7 @@ export function StaffDashboard() {
             <span className="live-dot" />
             إدارة الأنشطة الطلابية
           </span>
-          <h1>
-            أهلًا، {session.user!.name.split(' ')[0]} <span className="wave">✦</span>
-          </h1>
+          <h1>أهلًا، {session.user!.name.split(' ')[0]}</h1>
           <p>نظرة واضحة على الطلبات، وخطوات أسرع للمراجعة.</p>
         </div>
         <Link to="/requests" className="button primary">
@@ -134,9 +133,9 @@ export function StaffDashboard() {
         <div>
           <span className="hero-label">
             <ShieldCheck size={15} />
-            مساحة المراجعة والاعتماد
+            كلية التجارة · جامعة قناة السويس
           </span>
-          <h2>كل طلب، يستحق مراجعة دقيقة.</h2>
+          <h2>إدارة طلبات النشاط الطلابي</h2>
           <p>راجع البيانات، وطابق الاستمارة الورقية، ثم اعتمد النشاط بخطوات موثقة.</p>
           <Link to="/requests?status=pending">
             {number(count('pending'))} طلب بانتظار المراجعة <ArrowLeft size={17} />
@@ -510,7 +509,12 @@ export function ReviewPage() {
               </div>
             </div>
             {r.version > 0 && (
-              <a className="form-download-row" href={`/api/requests/${r.id}/form`}>
+              <a
+                className="form-download-row"
+                href={`/api/requests/${r.id}/form`}
+                target={isBrowserPreview ? '_blank' : undefined}
+                rel="noopener"
+              >
                 <FileText size={24} />
                 <div>
                   <strong>استمارة النشاط الطلابي</strong>
