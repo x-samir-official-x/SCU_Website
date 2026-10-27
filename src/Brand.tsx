@@ -1,5 +1,5 @@
 import { BookOpenCheck, Check, FileText } from 'lucide-react';
-import { useSession } from './lib';
+import { logoSrc, useSession } from './lib';
 
 export function BrandMark({ light = false }: { light?: boolean }) {
   const { session } = useSession();
@@ -7,7 +7,7 @@ export function BrandMark({ light = false }: { light?: boolean }) {
     <div className={`brand ${light ? 'light' : ''}`}>
       <div className="brand-logos">
         <img
-          src={session.faculty.logoPath}
+          src={logoSrc(session.faculty.logoPath)}
           width="2001"
           height="786"
           alt="شعار جامعة قناة السويس وشعار كلية التجارة"
@@ -27,7 +27,7 @@ export function AcademicSeal() {
   return (
     <div className="academic-seal">
       <img
-        src={session.faculty.logoPath}
+        src={logoSrc(session.faculty.logoPath)}
         width="2001"
         height="786"
         alt="جامعة قناة السويس — كلية التجارة"

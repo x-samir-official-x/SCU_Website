@@ -22,6 +22,7 @@ import {
 import {
   api,
   ErrorPanel,
+  logoSrc,
   Loading,
   SessionContext,
   setCsrf,
@@ -393,7 +394,7 @@ function Shell() {
             <span>{session.faculty.faculty}</span>
           </div>
           <img
-            src={session.faculty.logoPath}
+            src={logoSrc(session.faculty.logoPath)}
             width="2001"
             height="786"
             alt="شعار الجامعة والكلية"

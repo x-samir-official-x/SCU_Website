@@ -2,6 +2,9 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { AlertCircle, CheckCircle2, LoaderCircle, X } from 'lucide-react';
 import type { Session, Status } from './types';
 
+/** نسخة WebP خفيفة من الشعار للواجهة؛ ملف PNG الأصلي يبقى للاستمارة المطبوعة. */
+export const logoSrc = (path: string) => path.replace(/\.png$/i, '.webp');
+
 let csrf = '';
 export function setCsrf(value: string) {
   csrf = value;

@@ -1,0 +1,231 @@
+/*
+  polish.css — طبقة الصقل: اللوجوهات، الأداء، سهولة الاستخدام على الموبايل.
+  تُحمَّل آخر ملف. حذف الاستيراد من main.tsx يرجّع الشكل السابق.
+*/
+:root {
+  --shadow-1: 0 1px 2px #102b500a, 0 3px 10px #102b5008;
+  --shadow-2: 0 4px 12px #102b500d, 0 14px 34px #102b5012;
+  --shadow-3: 0 12px 28px #102b5014, 0 30px 64px #102b5018;
+}
+
+/* ---------- أساسيات ---------- */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+@media (hover: hover) and (pointer: fine) {
+  html {
+    scrollbar-gutter: stable; /* لا قفزة في التخطيط عند فتح النوافذ على الكمبيوتر */
+  }
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+p,
+li {
+  text-wrap: pretty;
+}
+a,
+button,
+summary,
+input,
+select,
+textarea,
+[role='button'] {
+  touch-action: manipulation;
+}
+.icon-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.card {
+  box-shadow: var(--shadow-1);
+}
+
+/* ---------- إصلاح التمرير الأفقي على الموبايل ---------- */
+/* عنصر sr-only داخل الجداول كان يهرب من حاوية التمرير ويوسّع الصفحة كلها */
+.table-scroll {
+  position: relative;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/* ---------- شريط علوي ثابت وشفاف ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  background: #ffffffe0;
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  backdrop-filter: saturate(1.6) blur(14px);
+}
+
+/* ---------- الصفحة العامة: هيدر ثابت ولوجوهات ---------- */
+html:has(.landing-page) {
+  scroll-padding-top: 92px;
+}
+.lp-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #ffffffe6;
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  backdrop-filter: saturate(1.6) blur(14px);
+}
+.lp-wordmark {
+  gap: 14px;
+}
+.lp-wordmark-logos {
+  display: block;
+  flex: none;
+  width: auto;
+  height: 44px;
+}
+.lp-wordmark-text {
+  position: relative;
+  padding-inline-start: 14px;
+  white-space: nowrap;
+}
+.lp-nav-login {
+  white-space: nowrap;
+}
+.lp-wordmark-text::before {
+  content: '';
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-start: 0;
+  width: 1px;
+  background: #d5dfec;
+}
+/* الشعاران يظهران في الهيدر، فالمقدمة تبدأ بشارة مؤسسية خفيفة */
+.lp-institution {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 15px;
+  margin-bottom: 20px;
+  border: 1px solid #d9e4f3;
+  border-radius: 999px;
+  background: #f4f8fe;
+  color: #2a4a78;
+  font-size: 13px;
+  font-weight: 700;
+}
+.lp-institution::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue, #235ce3);
+}
+.lp-footer-id {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.lp-footer-logos {
+  display: block;
+  flex: none;
+  width: auto;
+  height: 48px;
+}
+
+/* ---------- الشريط الجانبي المغلق لا يُركَّز عليه ولا يُقرأ ---------- */
+@media (max-width: 1000px) {
+  .sidebar {
+    visibility: hidden;
+  }
+  .sidebar.open {
+    visibility: visible;
+  }
+}
+
+/* ---------- الموبايل ---------- */
+@media (max-width: 740px) {
+  .mobile-institution {
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 10px 18px;
+  }
+  .mobile-institution img {
+    order: -1;
+    flex: none;
+    width: auto;
+    height: 36px;
+  }
+}
+@media (max-width: 560px) {
+  .student-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .student-stats > :first-child {
+    grid-column: 1 / -1;
+  }
+  .lp-wordmark-logos {
+    height: 34px;
+  }
+  .lp-wordmark {
+    gap: 10px;
+  }
+  .lp-wordmark-text {
+    padding-inline-start: 10px;
+    font-size: 16px;
+  }
+  .lp-wordmark-text small {
+    display: none;
+  }
+  .lp-footer-id {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .lp-hero-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .lp-hero-actions .lp-button {
+    justify-content: center;
+    padding-inline: 12px;
+  }
+}
+@media (max-width: 380px) {
+  .lp-wordmark-logos {
+    height: 30px;
+  }
+  .lp-wordmark-text {
+    font-size: 15px;
+  }
+}
+@media (max-width: 760px) {
+  /* 16px يمنع تكبير iOS التلقائي عند التركيز على الحقول */
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* ---------- ظل الهيدر مع التمرير بدون JavaScript ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    @keyframes p-header-shadow {
+      from {
+        box-shadow: 0 0 0 #102b5000;
+      }
+      to {
+        box-shadow: 0 8px 26px #102b5016;
+      }
+    }
+    .lp-header,
+    .topbar {
+      animation: p-header-shadow linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 90px;
+    }
+  }
+}
