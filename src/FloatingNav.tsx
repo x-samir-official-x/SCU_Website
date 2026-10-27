@@ -43,7 +43,11 @@ export function FloatingNav({ parallaxRef }: { parallaxRef: React.RefObject<HTML
           data-menu={menu}
           aria-label="التنقل الرئيسي"
         >
-          <Link to="/" className="fnav-brand" aria-label="بوابة النشاط الطلابي — الصفحة الرئيسية">
+          <Link
+            to="/"
+            className="fnav-brand"
+            aria-label={`${session.faculty.platformName} — ${session.faculty.brand}، الصفحة الرئيسية`}
+          >
             <img
               className="fnav-logos"
               src={logoSrc(session.faculty.logoPath)}
@@ -53,8 +57,8 @@ export function FloatingNav({ parallaxRef }: { parallaxRef: React.RefObject<HTML
               fetchPriority="high"
             />
             <span className="fnav-brand-text">
-              <strong>كلية التجارة</strong>
-              <small>بوابة النشاط الطلابي</small>
+              <strong lang="ar">{session.faculty.platformName}</strong>
+              <small>{session.faculty.brand}</small>
             </span>
           </Link>
           <div

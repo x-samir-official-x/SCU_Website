@@ -221,20 +221,40 @@ export function Landing() {
   useReveal();
   usePointerParallax(heroRef);
   useEffect(() => {
-    document.title = 'بوابة النشاط الطلابي | كلية التجارة — جامعة قناة السويس';
-  }, []);
+    const f = session.faculty;
+    document.title = `${f.platformName} | ${f.brand} — ${f.faculty} | ${f.university}`;
+  }, [session.faculty]);
   const signedIn = Boolean(session.user);
   return (
     <div className="landing-page px-page">
       <FloatingNav parallaxRef={heroRef} />
       <main id="main-content" tabIndex={-1}>
         <section className="px-hero" ref={heroRef}>
+          <div className="px-hero-bg" aria-hidden="true">
+            <picture>
+              <source media="(max-width: 700px)" srcSet="/photos/commerce-hero-mobile.webp" />
+              <img
+                src="/photos/commerce-hero.webp"
+                width="1694"
+                height="928"
+                alt=""
+                fetchPriority="high"
+                decoding="async"
+              />
+            </picture>
+          </div>
           <Ambient variant="hero" />
           <div className="px-wrap px-hero-grid">
             <div className="px-hero-copy">
+              <div className="px-brand">
+                <span className="px-brand-name" lang="ar">
+                  {session.faculty.platformName}
+                </span>
+                <span className="px-brand-sub">{session.faculty.brand}</span>
+              </div>
               <p className="px-chip">
                 <span className="px-chip-dot" />
-                {session.faculty.university} / {session.faculty.faculty}
+                {session.faculty.faculty} | {session.faculty.university}
               </p>
               <h1 className="px-h1">
                 <span className="px-line">

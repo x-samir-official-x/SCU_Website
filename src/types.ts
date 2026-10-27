@@ -10,6 +10,7 @@ export interface User {
   active: number;
 }
 export interface Faculty {
+  platformName: string;
   brand: string;
   logoPath: string;
   faculty: string;
