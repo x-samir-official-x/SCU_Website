@@ -7,14 +7,13 @@ import {
   Check,
   ChevronDown,
   FileText,
-  GraduationCap,
   Leaf,
   Menu,
   ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
-import { api, useSession } from './lib';
+import { api, logoSrc, useSession } from './lib';
 import './landing.css';
 
 const posts = [
@@ -102,7 +101,14 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
                 onClick={() => open(post.id)}
                 aria-label={`اقرأ مشاركة ${post.title}`}
               >
-                <img src={post.image} alt={post.alt} width="720" height="540" loading="lazy" />
+                <img
+                  src={post.image}
+                  alt={post.alt}
+                  width="720"
+                  height="540"
+                  loading="lazy"
+                  decoding="async"
+                />
                 <span className="post-category">{post.category}</span>
                 <span className="post-open">
                   <ArrowUpLeft size={21} />
@@ -191,8 +197,15 @@ export function Landing() {
       <header className="lp-header">
         <div className="lp-container lp-nav">
           <Link to="/" className="lp-wordmark">
-            <GraduationCap size={27} />
-            <span>
+            <img
+              className="lp-wordmark-logos"
+              src={logoSrc(session.faculty.logoPath)}
+              width="2001"
+              height="786"
+              alt="شعارا جامعة قناة السويس وكلية التجارة"
+              fetchPriority="high"
+            />
+            <span className="lp-wordmark-text">
               كلية التجارة<small>بوابة النشاط الطلابي</small>
             </span>
           </Link>
@@ -222,14 +235,6 @@ export function Landing() {
       <main id="main-content" tabIndex={-1}>
         <section className="lp-hero lp-container">
           <div className="lp-hero-copy">
-            <img
-              className="lp-identities"
-              src={session.faculty.logoPath}
-              alt="شعار كلية التجارة وشعار جامعة قناة السويس"
-              width="2001"
-              height="786"
-              fetchPriority="high"
-            />
             <p className="lp-institution">
               {session.faculty.university} / {session.faculty.faculty}
             </p>
@@ -408,9 +413,19 @@ export function Landing() {
         </section>
       </main>
       <footer className="lp-footer lp-container">
-        <div>
-          <strong>{session.faculty.faculty}</strong>
-          <span>{session.faculty.university} — بوابة النشاط الطلابي</span>
+        <div className="lp-footer-id">
+          <img
+            className="lp-footer-logos"
+            src={logoSrc(session.faculty.logoPath)}
+            width="2001"
+            height="786"
+            alt=""
+            decoding="async"
+          />
+          <div>
+            <strong>{session.faculty.faculty}</strong>
+            <span>{session.faculty.university} — بوابة النشاط الطلابي</span>
+          </div>
         </div>
         <p>
           نسخة للعرض والتجربة.{' '}
@@ -454,7 +469,12 @@ export function Register() {
         العودة إلى الصفحة الرئيسية
       </Link>
       <section>
-        <img src={session.faculty.logoPath} width="2001" height="786" alt="شعار الجامعة والكلية" />
+        <img
+          src={logoSrc(session.faculty.logoPath)}
+          width="2001"
+          height="786"
+          alt="شعار الجامعة والكلية"
+        />
         <span className="lp-kicker">أول خطوة في تجربتك</span>
         <h1>إنشاء حساب طالب</h1>
         {session.preview ? (

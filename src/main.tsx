@@ -5,6 +5,7 @@ import App from './App';
 import './styles.css';
 import './identity.css';
 import './motion.css';
+import './polish.css';
 import { preparePreview } from './preview-bootstrap';
 
 preparePreview()
