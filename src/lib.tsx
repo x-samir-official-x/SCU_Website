@@ -177,10 +177,25 @@ export const date = (value?: string | null) =>
     : '—';
 export const requestNumber = (id: number) => `ACT-${String(id).padStart(5, '0')}`;
 export function Loading({ compact = false }: { compact?: boolean }) {
+  if (compact)
+    return (
+      <div className="loading compact" role="status">
+        <LoaderCircle className="spin" size={25} />
+        <span>جارٍ تحميل البيانات…</span>
+      </div>
+    );
   return (
-    <div className={compact ? 'loading compact' : 'loading'} role="status">
-      <LoaderCircle className="spin" size={25} />
-      <span>جارٍ تحميل البيانات…</span>
+    <div className="loading" role="status" aria-busy="true">
+      <span className="sk sk-title" />
+      <span className="sk sk-line" />
+      <span className="sk sk-hero" />
+      <div className="sk-grid">
+        <span className="sk sk-card" />
+        <span className="sk sk-card" />
+        <span className="sk sk-card" />
+      </div>
+      <span className="sk sk-panel" />
+      <span className="sr-only">جارٍ التحميل…</span>
     </div>
   );
 }

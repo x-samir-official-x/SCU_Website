@@ -1,0 +1,55 @@
+/*
+  tokens.css — الخط والألوان والظلال المشتركة للتصميم الجديد.
+  Cairo للعناوين والأرقام والأزرار، وTajawal للنص الأساسي.
+*/
+@font-face {
+  font-family: Cairo;
+  src: url('/fonts/Cairo-Arabic-Variable.woff2') format('woff2');
+  font-weight: 200 1000;
+  font-display: swap;
+  unicode-range:
+    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E,
+    U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+:root {
+  --font-display: Cairo, Tajawal, Arial, sans-serif;
+
+  --c-navy-950: #061629;
+  --c-navy-900: #0a1f3d;
+  --c-navy: #102b50;
+  --c-navy-700: #1a3d70;
+  --c-blue: #235ce3;
+  --c-blue-400: #4f84ff;
+  --c-sky: #9dbcff;
+  --c-ice: #e8f0ff;
+  --c-gold: #e0c185;
+  --c-gold-600: #b98f45;
+  --c-ink: #0c1f3f;
+  --c-ink-2: #445774;
+  --c-paper: #f3f6fc;
+  --c-line: #dce5f2;
+
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --glass-line: rgba(255, 255, 255, 0.78);
+
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.5, 1);
+  --sh-glass:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(8, 25, 52, 0.06),
+    0 10px 28px rgba(8, 25, 52, 0.1), 0 28px 60px rgba(8, 25, 52, 0.1);
+  --sh-card:
+    0 1px 2px rgba(10, 31, 61, 0.05), 0 6px 18px rgba(10, 31, 61, 0.06),
+    0 18px 40px rgba(10, 31, 61, 0.05);
+  --sh-lift:
+    0 2px 4px rgba(10, 31, 61, 0.05), 0 14px 30px rgba(10, 31, 61, 0.1),
+    0 34px 70px rgba(35, 92, 227, 0.12);
+}
+h1,
+h2,
+h3,
+.page-heading h1,
+.card-heading h2,
+.stat-card strong,
+.brand strong {
+  font-family: var(--font-display);
+}

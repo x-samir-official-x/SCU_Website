@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
@@ -8,12 +8,14 @@ import {
   ChevronDown,
   FileText,
   Leaf,
-  Menu,
   ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
 import { api, logoSrc, useSession } from './lib';
+import { Ambient } from './Ambient';
+import { FloatingNav } from './FloatingNav';
+import { useCountUp, usePointerParallax, useReveal } from './hooks';
 import './landing.css';
 
 const posts = [
@@ -186,257 +188,279 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
   );
 }
 
+function Words({ text, start = 0 }: { text: string; start?: number }) {
+  const words = text.split(' ');
+  return (
+    <>
+      {words.map((word, i) => (
+        <Fragment key={`${word}-${i}`}>
+          <span className="px-w">
+            <span style={{ '--i': start + i } as CSSProperties}>{word}</span>
+          </span>
+          {i < words.length - 1 && ' '}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+const steps = [
+  ['سجّل مشاركتك', 'ادخل حسابك وأضف وصف نشاطك وصورته وبيانات المشاركة.', Users],
+  ['اطبع استمارتك', 'راجع بياناتك، ثم نزّل الاستمارة الجاهزة واطبعها.', FileText],
+  ['سلّمها للموظف', 'توجّه للمكتب المحدد. يبحث الموظف برقمك الجامعي ويراجع الورق.', ShieldCheck],
+  ['تابع اعتماد نشاطك', 'بعد تأكيد الموظف، يظهر النشاط معتمدًا وتكتمل درجتك.', Check],
+] as const;
+
+const delay = (n: number) => ({ '--d': n }) as CSSProperties;
+
 export function Landing() {
   const { session } = useSession();
-  const [menu, setMenu] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+  const scoreRef = useRef<HTMLSpanElement>(null);
+  const score = useCountUp(scoreRef, 40);
+  useReveal();
+  usePointerParallax(heroRef);
   useEffect(() => {
     document.title = 'بوابة النشاط الطلابي | كلية التجارة — جامعة قناة السويس';
   }, []);
+  const signedIn = Boolean(session.user);
   return (
-    <div className="landing-page">
-      <header className="lp-header">
-        <div className="lp-container lp-nav">
-          <Link to="/" className="lp-wordmark">
-            <img
-              className="lp-wordmark-logos"
-              src={logoSrc(session.faculty.logoPath)}
-              width="2001"
-              height="786"
-              alt="شعارا جامعة قناة السويس وكلية التجارة"
-              fetchPriority="high"
-            />
-            <span className="lp-wordmark-text">
-              كلية التجارة<small>بوابة النشاط الطلابي</small>
-            </span>
-          </Link>
-          <button
-            className="lp-menu"
-            aria-label={menu ? 'إغلاق قائمة التنقل' : 'فتح قائمة التنقل'}
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
-          >
-            {menu ? <X /> : <Menu />}
-          </button>
-          <nav
-            aria-label="التنقل الرئيسي"
-            className={menu ? 'is-open' : ''}
-            onClick={() => setMenu(false)}
-          >
-            <a href="#activities">أنشطة الطلاب</a>
-            <a href="#journey">خطوات التسجيل</a>
-            <a href="#questions">الأسئلة الشائعة</a>
-          </nav>
-          <Link to={session.user ? '/dashboard' : '/login'} className="lp-nav-login">
-            {session.user ? 'حسابي' : 'تسجيل الدخول'}
-            <ArrowUpLeft size={17} />
-          </Link>
-        </div>
-      </header>
+    <div className="landing-page px-page">
+      <FloatingNav parallaxRef={heroRef} />
       <main id="main-content" tabIndex={-1}>
-        <section className="lp-hero lp-container">
-          <div className="lp-hero-copy">
-            <p className="lp-institution">
-              {session.faculty.university} / {session.faculty.faculty}
-            </p>
-            <h1>
-              تجربة تستحق المشاركة.
-              <br />
-              ونشاط يصنع فارقًا.
-            </h1>
-            <p className="lp-hero-description">
-              مساحتك لتشارك ما أنجزته، وتُلهم زملاءك، وتوثّق نشاطك الطلابي. من أول مشاركة، إلى
-              استمارة جاهزة للطباعة واعتماد تتابعه من حسابك.
-            </p>
-            <div className="lp-hero-actions">
-              <Link to={session.user ? '/dashboard' : '/login'} className="lp-button lp-navy">
-                {session.user ? 'الذهاب إلى حسابي' : 'تسجيل الدخول'}
-                <ArrowLeft size={19} />
-              </Link>
-              <Link to={session.user ? '/community' : '/register'} className="lp-button lp-outline">
-                {session.user ? 'استكشف أنشطة الطلاب' : 'إنشاء حساب جديد'}
-              </Link>
-            </div>
-            <a href="#activities" className="lp-browse">
-              <span>
-                <ArrowDown size={17} />
-              </span>
-              خذ جولة في أنشطة زملائك، بدون تسجيل
-            </a>
-          </div>
-          <div className="lp-hero-art">
-            <div className="lp-photo-frame">
-              <img
-                src="/photos/volunteer.webp"
-                width="1024"
-                height="1024"
-                alt="صورة توضيحية مولّدة لطلاب يتعاونون في زراعة شجرة"
-                fetchPriority="high"
-              />
-              <div className="lp-photo-caption">
-                <span>
-                  <Leaf size={19} />
-                  من المشاركة، يبدأ التغيير
+        <section className="px-hero" ref={heroRef}>
+          <Ambient variant="hero" />
+          <div className="px-wrap px-hero-grid">
+            <div className="px-hero-copy">
+              <p className="px-chip">
+                <span className="px-chip-dot" />
+                {session.faculty.university} / {session.faculty.faculty}
+              </p>
+              <h1 className="px-h1">
+                <span className="px-line">
+                  <Words text="تجربة تستحق المشاركة." />
                 </span>
-                <small>صورة توضيحية مولّدة</small>
+                <span className="px-line px-grad">
+                  <Words text="ونشاط يصنع فارقًا." start={3} />
+                </span>
+              </h1>
+              <p className="px-lead">
+                مساحتك لتشارك ما أنجزته، وتُلهم زملاءك، وتوثّق نشاطك الطلابي. من أول مشاركة، إلى
+                استمارة جاهزة للطباعة واعتماد تتابعه من حسابك.
+              </p>
+              <div className="px-actions">
+                <Link to={signedIn ? '/dashboard' : '/login'} className="px-btn px-btn-light">
+                  <span>{signedIn ? 'الذهاب إلى حسابي' : 'تسجيل الدخول'}</span>
+                  <ArrowLeft size={19} />
+                </Link>
+                <Link to={signedIn ? '/community' : '/register'} className="px-btn px-btn-glass">
+                  <span>{signedIn ? 'استكشف أنشطة الطلاب' : 'إنشاء حساب جديد'}</span>
+                </Link>
               </div>
+              <a href="#activities" className="px-browse">
+                <span>
+                  <ArrowDown size={16} />
+                </span>
+                خذ جولة في أنشطة زملائك، بدون تسجيل
+              </a>
             </div>
-            <div className="lp-form-note">
-              <span className="lp-note-icon">
-                <FileText size={24} />
-              </span>
-              <div>
-                <strong>مشاركتك، موثّقة.</strong>
-                <span>سجّل نشاطك واستلم استمارتك</span>
+            <div className="px-hero-art">
+              <span className="px-orbit px-orbit-a" aria-hidden="true" />
+              <span className="px-orbit px-orbit-b" aria-hidden="true" />
+              <figure className="px-arch">
+                <img
+                  src="/photos/volunteer.webp"
+                  width="1000"
+                  height="667"
+                  alt="صورة توضيحية مولّدة لطلاب يتعاونون في زراعة شجرة"
+                  fetchPriority="high"
+                />
+                <figcaption>
+                  <span>
+                    <Leaf size={18} />
+                    من المشاركة، يبدأ التغيير
+                  </span>
+                  <small>صورة توضيحية مولّدة</small>
+                </figcaption>
+              </figure>
+              <div className="px-float px-float-note">
+                <span className="px-float-icon">
+                  <FileText size={22} />
+                </span>
+                <div>
+                  <strong>مشاركتك، موثّقة.</strong>
+                  <span>سجّل نشاطك واستلم استمارتك</span>
+                </div>
+                <span className="px-float-check">
+                  <Check size={16} />
+                </span>
               </div>
-              <span className="lp-note-check">
-                <Check size={17} />
-              </span>
+              <div className="px-float px-float-score">
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                  <circle cx="32" cy="32" r="26" className="px-ring-bg" />
+                  <circle cx="32" cy="32" r="26" className="px-ring-fg" pathLength="100" />
+                </svg>
+                <div>
+                  <strong>٤٠ درجة</strong>
+                  <span>للنشاط الواحد المعتمد</span>
+                </div>
+              </div>
+              <p className="px-art-label">نتعلّم. نشارك. نترك أثرًا.</p>
             </div>
-            <div className="lp-art-label">نتعلّم. نشارك. نترك أثرًا.</div>
+          </div>
+          <div className="px-wrap">
+            <ul className="px-promise">
+              <li>
+                <Users size={20} />
+                مجتمع واحد يجمع طلاب التجارة
+              </li>
+              <li>
+                <FileText size={20} />
+                استمارة منظمة وجاهزة للطباعة
+              </li>
+              <li>
+                <ShieldCheck size={20} />
+                اعتماد واضح بعد المراجعة
+              </li>
+            </ul>
           </div>
         </section>
-        <div className="lp-promise">
-          <div className="lp-container">
-            <span>
-              <Users size={20} />
-              مجتمع واحد يجمع طلاب التجارة
-            </span>
-            <span>
-              <FileText size={20} />
-              استمارة منظمة وجاهزة للطباعة
-            </span>
-            <span>
-              <ShieldCheck size={20} />
-              اعتماد واضح بعد المراجعة
-            </span>
-          </div>
-        </div>
-        <section className="lp-section lp-container" id="activities">
-          <div className="lp-section-heading">
+
+        <section className="px-section px-wrap px-activities" id="activities">
+          <div className="px-heading" data-reveal="up">
             <div>
-              <span className="lp-kicker">من قلب الحياة الجامعية</span>
+              <span className="px-kicker">من قلب الحياة الجامعية</span>
               <h2>
                 مشاركات صغيرة.
                 <br />
-                حكايات تستحق أن تُروى.
+                <em>حكايات تستحق أن تُروى.</em>
               </h2>
             </div>
             <p>
-              تطوّع، مبادرات، وخبرات نتبادلها.
-              <br />
-              استكشف شكل المشاركات التي ستجمعنا هنا.
+              تطوّع، مبادرات، وخبرات نتبادلها. استكشف شكل المشاركات التي ستجمعنا هنا.
               <small>المحتوى والصور التالية نماذج توضيحية للواجهة.</small>
             </p>
           </div>
-          <ActivityGallery />
+          <div data-reveal="up" style={delay(1)}>
+            <ActivityGallery />
+          </div>
         </section>
-        <section className="lp-journey" id="journey">
-          <div className="lp-container">
-            <div className="lp-journey-intro">
-              <div>
-                <span className="lp-kicker">من المشاركة إلى الاعتماد</span>
+
+        <section className="px-slab" id="journey">
+          <Ambient variant="slab" />
+          <div className="px-wrap px-slab-inner">
+            <div className="px-journey-intro">
+              <div data-reveal="up">
+                <span className="px-kicker px-kicker-light">من المشاركة إلى الاعتماد</span>
                 <h2>
                   نشاط واحد.
                   <br />
-                  خطوات واضحة.
+                  <em>خطوات واضحة.</em>
                 </h2>
                 <p>كل خطوة في مكانها، وكل تحديث يظهر في حسابك.</p>
               </div>
-              <div className="lp-points">
-                <strong>٤٠</strong>
-                <span>
-                  درجة للنشاط الواحد<small>بعد المراجعة والاعتماد</small>
-                </span>
+              <div className="px-score" data-reveal="scale" style={delay(1)}>
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                  <circle cx="60" cy="60" r="52" className="px-score-bg" />
+                  <circle cx="60" cy="60" r="52" className="px-score-fg" pathLength="100" />
+                </svg>
+                <div>
+                  <strong ref={scoreRef} aria-label="٤٠">
+                    {score.toLocaleString('ar-EG')}
+                  </strong>
+                  <span>درجة للنشاط الواحد</span>
+                  <small>بعد المراجعة والاعتماد</small>
+                </div>
               </div>
             </div>
-            <ol className="lp-steps">
-              {[
-                ['سجّل مشاركتك', 'ادخل حسابك وأضف وصف نشاطك وصورته وبيانات المشاركة.', Users],
-                ['اطبع استمارتك', 'راجع بياناتك، ثم نزّل الاستمارة الجاهزة واطبعها.', FileText],
-                [
-                  'سلّمها للموظف',
-                  'توجّه للمكتب المحدد. يبحث الموظف برقمك الجامعي ويراجع الورق.',
-                  ShieldCheck,
-                ],
-                ['تابع اعتماد نشاطك', 'بعد تأكيد الموظف، يظهر النشاط معتمدًا وتكتمل درجتك.', Check],
-              ].map(([title, text, Icon], i) => {
-                const StepIcon = Icon as typeof Users;
-                return (
-                  <li key={String(title)}>
-                    <div className="lp-step-top">
-                      <span>٠{['١', '٢', '٣', '٤'][i]}</span>
-                      <StepIcon size={24} />
-                    </div>
-                    <h3>{String(title)}</h3>
-                    <p>{String(text)}</p>
-                  </li>
-                );
-              })}
+            <ol className="px-steps" data-reveal="line">
+              {steps.map(([title, text, Icon], i) => (
+                <li key={title} data-reveal="up" style={delay(i + 1)}>
+                  <div className="px-step-top">
+                    <span className="px-step-n">٠{['١', '٢', '٣', '٤'][i]}</span>
+                    <span className="px-step-icon">
+                      <Icon size={22} />
+                    </span>
+                  </div>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </li>
+              ))}
             </ol>
-            <p className="lp-journey-note">
+            <p className="px-note" data-reveal="fade">
               تقديم النشاط إلكترونيًا لا يمنح الدرجة تلقائيًا؛ تُحتسب بعد تسليم الاستمارة واعتماد
               الموظف المختص.
             </p>
           </div>
         </section>
-        <section className="lp-section lp-container lp-faq" id="questions">
-          <div>
-            <span className="lp-kicker">قبل أن تبدأ</span>
+
+        <section className="px-section px-wrap px-faq" id="questions">
+          <div className="px-faq-intro" data-reveal="up">
+            <span className="px-kicker">قبل أن تبدأ</span>
             <h2>
               أسئلة في بالك؟
               <br />
-              إجاباتها هنا.
+              <em>إجاباتها هنا.</em>
             </h2>
             <p>معلومات تساعدك تكمل خطواتك بثقة.</p>
           </div>
-          <div className="lp-faq-list">
-            {faqs.map(([question, answer]) => (
-              <details key={question}>
+          <div className="px-faq-list">
+            {faqs.map(([question, answer], i) => (
+              <details key={question} data-reveal="up" style={delay(i + 1)}>
                 <summary>
-                  {question}
-                  <ChevronDown size={19} />
+                  <span>{question}</span>
+                  <span className="px-faq-icon" aria-hidden="true">
+                    <ChevronDown size={18} />
+                  </span>
                 </summary>
                 <p>{answer}</p>
               </details>
             ))}
           </div>
         </section>
-        <section className="lp-container lp-closing">
-          <div>
-            <h2>خطوتك القادمة تبدأ هنا.</h2>
-            <p>وثّق تجربتك، وخلّي مشاركتك جزءًا من حكاية الكلية.</p>
+
+        <section className="px-wrap">
+          <div className="px-closing" data-reveal="scale">
+            <Ambient variant="card" />
+            <div>
+              <h2>خطوتك القادمة تبدأ هنا.</h2>
+              <p>وثّق تجربتك، وخلّي مشاركتك جزءًا من حكاية الكلية.</p>
+            </div>
+            <Link className="px-btn px-btn-light" to={signedIn ? '/dashboard' : '/register'}>
+              <span>{signedIn ? 'الذهاب إلى حسابي' : 'ابدأ بإنشاء حساب'}</span>
+              <ArrowLeft size={19} />
+            </Link>
           </div>
-          <Link className="lp-button lp-white" to="/register">
-            ابدأ بإنشاء حساب
-            <ArrowLeft size={19} />
-          </Link>
         </section>
       </main>
-      <footer className="lp-footer lp-container">
-        <div className="lp-footer-id">
-          <img
-            className="lp-footer-logos"
-            src={logoSrc(session.faculty.logoPath)}
-            width="2001"
-            height="786"
-            alt=""
-            decoding="async"
-          />
-          <div>
-            <strong>{session.faculty.faculty}</strong>
-            <span>{session.faculty.university} — بوابة النشاط الطلابي</span>
+      <footer className="px-footer">
+        <div className="px-wrap px-footer-inner">
+          <div className="px-footer-id">
+            <span className="px-footer-logos">
+              <img
+                src={logoSrc(session.faculty.logoPath)}
+                width="2001"
+                height="786"
+                alt="شعارا جامعة قناة السويس وكلية التجارة"
+                decoding="async"
+              />
+            </span>
+            <div>
+              <strong>{session.faculty.faculty}</strong>
+              <span>{session.faculty.university} — بوابة النشاط الطلابي</span>
+            </div>
           </div>
+          <p>
+            نسخة للعرض والتجربة.{' '}
+            {session.preview
+              ? 'الحسابات والبيانات محفوظة في متصفحك فقط.'
+              : 'الربط الرسمي والتحقق من الهوية غير مفعّلين.'}
+          </p>
+          <a href="#questions">
+            الدليل والأسئلة الشائعة
+            <ArrowUpLeft size={16} />
+          </a>
         </div>
-        <p>
-          نسخة للعرض والتجربة.{' '}
-          {session.preview
-            ? 'الحسابات والبيانات محفوظة في متصفحك فقط.'
-            : 'الربط الرسمي والتحقق من الهوية غير مفعّلين.'}
-        </p>
-        <a href="#questions">
-          الدليل والأسئلة الشائعة
-          <ArrowUpLeft size={16} />
-        </a>
       </footer>
     </div>
   );
