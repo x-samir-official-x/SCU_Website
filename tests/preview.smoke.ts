@@ -40,7 +40,7 @@ async function login(role = 'طالب') {
 }
 async function logout() {
   await page.locator('.sidebar').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
-  await page.locator('.lp-hero h1').waitFor();
+  await page.locator('.px-hero h1').waitFor();
 }
 try {
   await page.goto(base, { waitUntil: 'networkidle' });
@@ -67,10 +67,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'فتح قائمة التنقل' }).click();
   await page.getByRole('navigation').getByRole('link', { name: 'أنشطة الطلاب' }).click();
-  assert.equal(
-    await page.locator('.lp-nav nav').evaluate((e) => getComputedStyle(e).display),
-    'none',
-  );
+  await page.locator('#fnav-sheet').waitFor({ state: 'detached' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: path.join(output, 'landing-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });

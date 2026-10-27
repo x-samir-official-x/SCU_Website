@@ -526,6 +526,19 @@ function Guide() {
     </>
   );
 }
+function RouteProgress() {
+  const { pathname } = useLocation();
+  const first = useRef(true);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setTick((t) => t + 1);
+  }, [pathname]);
+  return tick ? <div className="route-progress" key={tick} aria-hidden="true" /> : null;
+}
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
@@ -555,6 +568,7 @@ export default function App() {
     <ToastProvider>
       <SessionContext.Provider value={{ session, refresh }}>
         <ScrollToTop />
+        <RouteProgress />
         <a href="#main-content" className="skip-link">
           انتقل إلى المحتوى
         </a>
