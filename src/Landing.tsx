@@ -641,6 +641,19 @@ export function Register() {
                 />
               </label>
               <label>
+                رقم الموبايل (اختياري)
+                <input
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  dir="ltr"
+                  maxLength={20}
+                  autoComplete="tel"
+                  placeholder="01xxxxxxxxx"
+                />
+                <small>يراه الموظف المختص فقط، للتواصل بشأن طلبك.</small>
+              </label>
+              <label>
                 {session.preview ? 'كلمة المرور التجريبية' : 'كلمة المرور'}
                 <input
                   name="password"

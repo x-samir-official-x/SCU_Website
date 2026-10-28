@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BadgeCheck,
+  Camera,
   ClipboardCheck,
   GraduationCap,
   KeyRound,
@@ -9,9 +10,11 @@ import {
   Mail,
   ScrollText,
 } from 'lucide-react';
+import { Avatar } from './Avatar';
 import {
   api,
   Badge,
+  prepareAvatar,
   date,
   Empty,
   ErrorPanel,
@@ -30,6 +33,7 @@ interface ProfileData {
   profile: {
     name: string;
     email: string;
+    phone: string | null;
     year: string | null;
     idShown: string | null;
     hasUniversityId: boolean;
@@ -58,6 +62,9 @@ export function ProfilePage() {
   const [busy, setBusy] = useState('');
   const [pw, setPw] = useState({ current: '', password: '', again: '' });
   const [uid, setUid] = useState('');
+  const [phone, setPhone] = useState<string | null>(null);
+  const [mail, setMail] = useState({ email: '', password: '' });
+  const fileRef = useRef<HTMLInputElement>(null);
   const [termsOpen, setTermsOpen] = useState(false);
   if (state.loading || mine.loading) return <Loading />;
   if (state.error) return <ErrorPanel message={state.error} retry={state.reload} />;
@@ -92,6 +99,41 @@ export function ProfilePage() {
     );
     if (ok) setPw({ current: '', password: '', again: '' });
   }
+  async function chooseAvatar(file: File | undefined) {
+    if (!file) return;
+    setBusy('avatar');
+    try {
+      const prepared = await prepareAvatar(file);
+      const form = new FormData();
+      form.set('file', prepared);
+      await api('/profile/avatar', { method: 'POST', body: form });
+      toast('تم تحديث صورتك الشخصية.');
+      await refresh();
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setBusy('');
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+  async function savePhone(e: FormEvent) {
+    e.preventDefault();
+    const ok = await run(
+      'phone',
+      () => send('/profile/phone', 'PUT', { phone: phone ?? profile.phone ?? '' }),
+      'تم حفظ رقم الموبايل.',
+    );
+    if (ok) setPhone(null);
+  }
+  async function changeEmail(e: FormEvent) {
+    e.preventDefault();
+    const ok = await run(
+      'email',
+      () => send('/profile/email', 'PUT', mail),
+      'تم تغيير البريد الإلكتروني.',
+    );
+    if (ok) setMail({ email: '', password: '' });
+  }
   async function addUniversityId(e: FormEvent) {
     e.preventDefault();
     const ok = await run(
@@ -113,9 +155,49 @@ export function ProfilePage() {
       </div>
 
       <section className="card profile-hero">
-        <span className="profile-avatar" aria-hidden="true">
-          {profile.name.trim().charAt(0)}
-        </span>
+        <div className="profile-photo">
+          <Avatar
+            userId={session.user?.id}
+            version={session.user?.avatar_v}
+            name={profile.name}
+            className="profile-avatar"
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            hidden
+            aria-label="اختر صورة شخصية"
+            onChange={(e) => chooseAvatar(e.target.files?.[0])}
+          />
+          <div className="profile-photo-actions">
+            <button
+              type="button"
+              className="link-button"
+              disabled={busy === 'avatar'}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Camera size={14} aria-hidden="true" />{' '}
+              {session.user?.avatar_v ? 'تغيير الصورة' : 'إضافة صورة (اختياري)'}
+            </button>
+            {Boolean(session.user?.avatar_v) && (
+              <button
+                type="button"
+                className="link-button"
+                disabled={busy === 'avatar'}
+                onClick={() =>
+                  run(
+                    'avatar',
+                    () => api('/profile/avatar', { method: 'DELETE', body: '{}' }),
+                    'تمت إزالة الصورة.',
+                  )
+                }
+              >
+                إزالة
+              </button>
+            )}
+          </div>
+        </div>
         <div className="profile-id">
           <h2>{profile.name}</h2>
           <p>
@@ -189,6 +271,26 @@ export function ProfilePage() {
               ))}
             </ol>
           )}
+          <form className="profile-inline" onSubmit={savePhone}>
+            <label>
+              رقم الموبايل (اختياري)
+              <input
+                type="tel"
+                inputMode="tel"
+                dir="ltr"
+                maxLength={20}
+                placeholder="01xxxxxxxxx"
+                value={phone ?? profile.phone ?? ''}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <small className="field-hint">
+                يراه الموظف المختص فقط، للتواصل بشأن طلبك. اتركه فارغًا لحذفه.
+              </small>
+            </label>
+            <button className="button secondary" disabled={busy === 'phone' || phone === null}>
+              حفظ الرقم
+            </button>
+          </form>
           <label className="profile-year">
             الفرقة الدراسية
             <select
@@ -279,6 +381,34 @@ export function ProfilePage() {
             </label>
             <button className="button" disabled={busy === 'pw'}>
               {busy === 'pw' ? 'جارٍ الحفظ…' : 'تغيير كلمة المرور'}
+            </button>
+          </form>
+          <h3 className="profile-sub">تغيير البريد الإلكتروني</h3>
+          <form className="profile-form" onSubmit={changeEmail}>
+            <label>
+              البريد الجديد
+              <input
+                type="email"
+                dir="ltr"
+                autoComplete="email"
+                maxLength={160}
+                value={mail.email}
+                onChange={(e) => setMail({ ...mail, email: e.target.value })}
+                required
+              />
+            </label>
+            <label>
+              كلمة المرور الحالية للتأكيد
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={mail.password}
+                onChange={(e) => setMail({ ...mail, password: e.target.value })}
+                required
+              />
+            </label>
+            <button className="button secondary" disabled={busy === 'email'}>
+              تغيير البريد
             </button>
           </form>
           <button

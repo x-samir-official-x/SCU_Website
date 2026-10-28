@@ -256,3 +256,34 @@ export async function prepareGalleryImage(file: File): Promise<File> {
   if (!blob) throw new Error('تعذر تجهيز الصورة.');
   return new File([blob], 'gallery.jpg', { type: 'image/jpeg' });
 }
+
+/** صورة شخصية: قص مربع من المنتصف، تصغير إلى ٢٥٦ بكسل، وإعادة ترميز JPEG (يزيل البيانات الوصفية). */
+export async function prepareAvatar(file: File): Promise<File> {
+  if (!['image/jpeg', 'image/png'].includes(file.type)) throw new Error('اختر صورة JPG أو PNG.');
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
+    throw new Error('تعذر قراءة الصورة. اختر صورة سليمة.');
+  });
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = Math.min(256, side);
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(
+    bitmap,
+    (bitmap.width - side) / 2,
+    (bitmap.height - side) / 2,
+    side,
+    side,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.88),
+  );
+  if (!blob) throw new Error('تعذر تجهيز الصورة.');
+  return new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+}

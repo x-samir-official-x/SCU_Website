@@ -1,5 +1,6 @@
 import { isBrowserPreview } from './preview-bootstrap';
 import { CertificateReader } from './CertificateReader';
+import { Avatar } from './Avatar';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -453,7 +454,12 @@ export function ReviewPage() {
         <div className="review-main">
           <section className="card review-student">
             <div className="review-student-header">
-              <span className="avatar large">{r.student_name?.[0]}</span>
+              <Avatar
+                userId={r.user_id}
+                version={r.student_avatar}
+                name={r.student_name ?? ''}
+                className="large"
+              />
               <div>
                 <span className="section-kicker">بيانات الطالب</span>
                 <h2>{r.student_name}</h2>
@@ -468,6 +474,10 @@ export function ReviewPage() {
               <div>
                 <small>الفرقة الدراسية</small>
                 <strong>{r.year}</strong>
+              </div>
+              <div>
+                <small>رقم الموبايل</small>
+                <strong dir="ltr">{r.student_phone || 'غير مسجل'}</strong>
               </div>
               <div>
                 <small>الكلية</small>

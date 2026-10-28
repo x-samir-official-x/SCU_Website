@@ -178,11 +178,17 @@ try {
   await other.getByRole('link', { name: 'ملفي الشخصي', exact: true }).first().click();
   await other.getByRole('heading', { name: 'ملفي الشخصي', level: 1 }).waitFor();
   assert.equal((await other.getByText('20269999').count()) > 0, true);
-  await other.getByLabel('كلمة المرور الحالية').fill('Example2026!');
+  await other.getByLabel('كلمة المرور الحالية', { exact: true }).fill('Example2026!');
   await other.getByLabel(/^كلمة المرور الجديدة/).fill('Changed2026!');
   await other.getByLabel('أعد كتابة كلمة المرور الجديدة').fill('Changed2026!');
   await other.getByRole('button', { name: 'تغيير كلمة المرور' }).click();
   await other.getByText('تم تغيير كلمة المرور').waitFor();
+  await other.getByLabel(/^رقم الموبايل/).fill('٠١٠١٢٣٤٥٦٧٨');
+  await other.getByRole('button', { name: 'حفظ الرقم' }).click();
+  await other.getByText('تم حفظ رقم الموبايل').waitFor();
+  await other.getByRole('button', { name: /^الإشعارات/ }).click();
+  await other.getByText('لا توجد إشعارات بعد').waitFor();
+  await other.keyboard.press('Escape');
   const forbidden = await other.evaluate(async () => (await fetch('/api/admin/staff')).status);
   assert.equal(forbidden, 403);
   await other.getByRole('link', { name: 'أنشطة الطلاب', exact: true }).click();

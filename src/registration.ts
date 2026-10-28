@@ -9,7 +9,22 @@ export interface RegistrationValue {
   year: string;
   student_id: string | null;
   national_id: string | null;
+  phone: string | null;
   terms_version: string;
+}
+
+/** رقم موبايل مصري: 01 + (0/1/2/5) + 8 أرقام. يقبل +20 و0020 والأرقام الهندية، ويُرجع الصيغة 01xxxxxxxxx. فارغ = غير مسجل. */
+export function validatePhone(
+  input: unknown,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  let v = normalizeDigits(input).replace(/^\+/, '');
+  if (!v) return { ok: true, value: null };
+  if (v.startsWith('0020')) v = v.slice(4);
+  else if (v.startsWith('20') && v.length === 12) v = v.slice(2);
+  if (/^1[0125][0-9]{8}$/.test(v)) v = '0' + v;
+  if (!/^01[0125][0-9]{8}$/.test(v))
+    return { ok: false, error: 'رقم الموبايل المصري ١١ رقمًا ويبدأ بـ 01.' };
+  return { ok: true, value: v };
 }
 
 /**
@@ -37,6 +52,8 @@ export function validateRegistration(
     return fail('الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
   if (nationalId && !/^[0-9]{14}$/.test(nationalId)) return fail('الرقم القومي ١٤ رقمًا.');
   if (password.length < 8 || password.length > 100) return fail('كلمة المرور من ٨ إلى ١٠٠ حرف.');
+  const phone = validatePhone(input.phone);
+  if (!phone.ok) return fail(phone.error);
   if (!YEARS.includes(String(input.year))) return fail('اختر الفرقة الدراسية.');
   if (input.accepted_terms !== true && input.accepted_terms !== 'on')
     return fail('يجب الموافقة على الشروط لإنشاء الحساب.');
@@ -49,6 +66,7 @@ export function validateRegistration(
       year: String(input.year),
       student_id: studentId || null,
       national_id: nationalId || null,
+      phone: phone.value,
       terms_version: TERMS_VERSION,
     },
   };

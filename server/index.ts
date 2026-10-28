@@ -12,7 +12,7 @@ import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
 import { checkCertificate } from '../src/certificate';
-import { validateRegistration, YEARS } from '../src/registration';
+import { validateRegistration, validatePhone, YEARS } from '../src/registration';
 import { normalizeDigits } from '../src/terms';
 import type { ActivityRequest, Role, User } from '../src/types';
 
@@ -106,7 +106,7 @@ export function createApp(
     if (cookie && /^[a-f0-9]{64}$/.test(cookie)) {
       const session = db
         .prepare(
-          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
+          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed,u.phone,u.avatar_v FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
         )
         .get(hash(cookie), Date.now());
       if (session) {
@@ -150,6 +150,21 @@ export function createApp(
     db
       .prepare('INSERT INTO events (request_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?)')
       .run(requestId, actor, action, note, now());
+  /** إشعار داخل الموقع. يُحتفظ بآخر ١٠٠ إشعار لكل مستخدم. */
+  const notify = (userId: number, title: string, body = '', link: string | null = null) => {
+    db.prepare(
+      'INSERT INTO notifications (user_id,title,body,link,created_at) VALUES (?,?,?,?,?)',
+    ).run(userId, title, body.slice(0, 300), link, now());
+    db.prepare(
+      'DELETE FROM notifications WHERE user_id=? AND id NOT IN (SELECT id FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 100)',
+    ).run(userId, userId);
+  };
+  const notifyStaff = (title: string, body: string, link: string) => {
+    const staff = db
+      .prepare("SELECT id FROM users WHERE role IN ('moderator','admin') AND active=1")
+      .all() as { id: number }[];
+    for (const u of staff) notify(u.id, title, body, link);
+  };
   const transaction = <T>(fn: () => T): T => {
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -164,7 +179,7 @@ export function createApp(
   function getRequest(id: number, user: User) {
     const r = db
       .prepare(
-        `SELECT r.*, u.name AS student_name, ${idDisplay('u.')} AS student_id, u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE r.id=?`,
+        `SELECT r.*, u.name AS student_name, u.phone AS student_phone, u.avatar_v AS student_avatar, ${idDisplay('u.')} AS student_id, u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE r.id=?`,
       )
       .get(id) as unknown as ActivityRequest | undefined;
     assert(r && (user.role !== 'student' || r.user_id === user.id), 404, 'الطلب غير موجود.');
@@ -306,7 +321,7 @@ export function createApp(
       assert(!taken, 409, 'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.');
       const result = db
         .prepare(
-          "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at) VALUES (?,?,?,'student',?,?,?,?,?,?)",
+          "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at,phone) VALUES (?,?,?,'student',?,?,?,?,?,?,?)",
         )
         .run(
           v.name,
@@ -318,6 +333,7 @@ export function createApp(
           now(),
           v.terms_version,
           now(),
+          v.phone,
         );
       startSession(res, Number(result.lastInsertRowid));
       res.status(201).json({ ok: true });
@@ -339,11 +355,12 @@ export function createApp(
     studentOnly(user);
     const row = db
       .prepare(
-        'SELECT name,email,year,student_id,national_id,created_at,terms_version,terms_accepted_at FROM users WHERE id=?',
+        'SELECT name,email,phone,year,student_id,national_id,created_at,terms_version,terms_accepted_at FROM users WHERE id=?',
       )
       .get(user.id) as {
       name: string;
       email: string;
+      phone: string | null;
       year: string | null;
       student_id: string | null;
       national_id: string | null;
@@ -360,6 +377,7 @@ export function createApp(
       profile: {
         name: row.name,
         email: row.email,
+        phone: row.phone,
         year: row.year,
         idShown: user.student_id,
         hasUniversityId: Boolean(row.student_id),
@@ -559,6 +577,11 @@ export function createApp(
         'submitted',
         version > 1 ? 'إعادة تقديم الطلب بعد التعديل' : 'تم تقديم النشاط للمراجعة',
       );
+      notifyStaff(
+        version > 1 ? 'طلب أُعيد إرساله للمراجعة' : 'طلب جديد للمراجعة',
+        `${user.name} — ${r.title}`,
+        `/requests/${r.id}`,
+      );
     });
     res.json({ request: detail(getRequest(r.id, user)) });
   });
@@ -645,6 +668,152 @@ export function createApp(
       res.status(201).json({ request: detail(r) });
     },
   );
+  // ===== الإشعارات داخل الموقع =====
+  app.get('/api/notifications', auth, (_req, res) => {
+    const user: User = res.locals.user;
+    const rows = db
+      .prepare(
+        'SELECT id,title,body,link,created_at,read_at FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 30',
+      )
+      .all(user.id) as { read_at: string | null }[];
+    const unread = db
+      .prepare('SELECT count(*) AS n FROM notifications WHERE user_id=? AND read_at IS NULL')
+      .get(user.id) as { n: number };
+    res.json({
+      notifications: rows.map(({ read_at, ...n }) => ({ ...n, read: Boolean(read_at) })),
+      unread: unread.n,
+    });
+  });
+  app.post('/api/notifications/read', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const input = z.object({ id: z.number().int().positive().optional() }).parse(req.body ?? {});
+    if (input.id)
+      db.prepare(
+        'UPDATE notifications SET read_at=? WHERE id=? AND user_id=? AND read_at IS NULL',
+      ).run(now(), input.id, user.id);
+    else
+      db.prepare('UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL').run(
+        now(),
+        user.id,
+      );
+    res.json({ ok: true });
+  });
+
+  // ===== الصورة الشخصية (اختيارية) وبيانات التواصل =====
+  const avatarUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  });
+  const dropAvatarFile = (name: string | null | undefined) => {
+    if (name && existsSync(path.join(uploadDir, name))) unlinkSync(path.join(uploadDir, name));
+  };
+  app.post(
+    '/api/profile/avatar',
+    auth,
+    (req, res, next) => {
+      avatarUpload.single('file')(req, res, (err) =>
+        next(err ? new HttpError(400, 'الصورة أكبر من ٢ ميجابايت أو غير صالحة.') : undefined),
+      );
+    },
+    (req, res) => {
+      const user: User = res.locals.user;
+      studentOnly(user);
+      const file = req.file;
+      assert(file, 400, 'اختر صورة.');
+      const b = file.buffer;
+      const detected = b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        ? 'image/png'
+        : b[0] === 255 && b[1] === 216 && b[2] === 255
+          ? 'image/jpeg'
+          : null;
+      assert(detected && detected === file.mimetype, 400, 'اختر صورة PNG أو JPG صحيحة.');
+      let clean: Buffer;
+      try {
+        clean = sanitizeGalleryImage(b, detected);
+      } catch {
+        throw new HttpError(400, 'تعذر قراءة الصورة. اختر صورة سليمة.');
+      }
+      const old = db.prepare('SELECT avatar_stored FROM users WHERE id=?').get(user.id) as {
+        avatar_stored: string | null;
+      };
+      const stored = `av-${randomBytes(20).toString('hex')}`;
+      writeFileSync(path.join(uploadDir, stored), clean, { mode: 0o600 });
+      db.prepare('UPDATE users SET avatar_stored=?,avatar_v=? WHERE id=?').run(
+        stored,
+        Date.now(),
+        user.id,
+      );
+      dropAvatarFile(old.avatar_stored);
+      res.status(201).json({ ok: true });
+    },
+  );
+  app.delete('/api/profile/avatar', auth, (_req, res) => {
+    const user: User = res.locals.user;
+    const old = db.prepare('SELECT avatar_stored FROM users WHERE id=?').get(user.id) as {
+      avatar_stored: string | null;
+    };
+    db.prepare('UPDATE users SET avatar_stored=NULL,avatar_v=0 WHERE id=?').run(user.id);
+    dropAvatarFile(old.avatar_stored);
+    res.json({ ok: true });
+  });
+  // الصورة تُعرض لصاحبها وللموظفين فقط (وليست علنية).
+  app.get('/api/avatar/:id', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const id = parseId(String(req.params.id));
+    assert(user.id === id || ['moderator', 'admin'].includes(user.role), 403, 'غير مسموح.');
+    const row = db.prepare('SELECT avatar_stored FROM users WHERE id=?').get(id) as
+      { avatar_stored: string | null } | undefined;
+    assert(row?.avatar_stored, 404, 'لا توجد صورة.');
+    const file = path.join(uploadDir, row.avatar_stored);
+    assert(existsSync(file), 404, 'لا توجد صورة.');
+    res.setHeader('Content-Type', readFileSync(file)[0] === 0xff ? 'image/jpeg' : 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(file);
+  });
+  app.put('/api/profile/phone', auth, (req, res) => {
+    const user: User = res.locals.user;
+    studentOnly(user);
+    const parsed = validatePhone(z.object({ phone: z.unknown() }).parse(req.body).phone);
+    assert(parsed.ok, 400, parsed.ok ? '' : parsed.error);
+    db.prepare('UPDATE users SET phone=? WHERE id=?').run(parsed.value, user.id);
+    res.json({ ok: true });
+  });
+  app.put(
+    '/api/profile/email',
+    auth,
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 10,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const user: User = res.locals.user;
+      studentOnly(user);
+      const input = z
+        .object({ email: z.string().max(160), password: z.string().max(128) })
+        .parse(req.body);
+      const email = input.email.trim().toLowerCase();
+      assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 400, 'راجع البريد الإلكتروني.');
+      const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(user.id) as {
+        password_hash: string;
+      };
+      const [salt, expected] = row.password_hash.split(':');
+      assert(
+        timingSafeEqual(scryptSync(input.password, salt, 64), Buffer.from(expected, 'hex')),
+        403,
+        'كلمة المرور غير صحيحة.',
+      );
+      assert(
+        !db
+          .prepare('SELECT 1 AS x FROM users WHERE email=? COLLATE NOCASE AND id!=?')
+          .get(email, user.id),
+        409,
+        'هذا البريد مستخدم في حساب آخر.',
+      );
+      db.prepare('UPDATE users SET email=? WHERE id=?').run(email, user.id);
+      res.json({ ok: true });
+    },
+  );
   app.delete('/api/attachments/:id', auth, (req, res) => {
     const file = db
       .prepare('SELECT * FROM attachments WHERE id=?')
@@ -693,6 +862,13 @@ export function createApp(
       input.data.hidden ? 'gallery_hidden' : 'gallery_shown',
       input.data.hidden ? 'إخفاء النشاط من المعرض العام' : 'إظهار النشاط في المعرض العام',
     );
+    if (input.data.hidden)
+      notify(
+        r.user_id,
+        'أُخفي نشاطك من المعرض العام',
+        'راجع مكتب النشاط الطلابي لو عندك استفسار. لا يؤثر هذا على اعتماد نشاطك.',
+        '/activity',
+      );
     res.json({ request: detail(getRequest(r.id, res.locals.user)) });
   });
   // المعرض العام: بدون تسجيل دخول، وبدون اسم الطالب أو رقمه أو أي معرّف شخصي.
@@ -935,6 +1111,15 @@ export function createApp(
         input.action === 'revoke' ? 'revoked' : input.action === 'reopen' ? 'reopened' : target,
         input.note,
       );
+      const text = {
+        approve: ['تم اعتماد نشاطك', `أُضيفت ${faculty.points} درجة إلى سجلك.`],
+        revision: ['مطلوب استكمال طلبك', input.note],
+        reject: ['لم يُعتمد طلبك', input.note],
+        cancel: ['تم إلغاء طلبك', input.note],
+        reopen: ['أُعيد فتح طلبك للتعديل', input.note],
+        revoke: ['تم سحب اعتماد نشاطك', input.note],
+      }[input.action as 'approve'];
+      notify(r.user_id, text[0], text[1], '/activity');
     });
     res.json({ request: detail(getRequest(r.id, user)) });
   });

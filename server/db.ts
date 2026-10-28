@@ -63,6 +63,14 @@ export function openDatabase(dataDir: string, demo: boolean) {
   addColumn('requests', 'gallery_hidden', 'gallery_hidden INTEGER NOT NULL DEFAULT 0');
   addColumn('users', 'terms_version', 'terms_version TEXT');
   addColumn('users', 'terms_accepted_at', 'terms_accepted_at TEXT');
+  addColumn('users', 'phone', 'phone TEXT');
+  addColumn('users', 'avatar_stored', 'avatar_stored TEXT');
+  addColumn('users', 'avatar_v', 'avatar_v INTEGER NOT NULL DEFAULT 0');
+  db.exec(`CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', link TEXT,
+    created_at TEXT NOT NULL, read_at TEXT
+  ); CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id,id);`);
   addColumn('users', 'onboarding_dismissed', 'onboarding_dismissed INTEGER NOT NULL DEFAULT 0');
   addColumn('requests', 'gallery_show_name', 'gallery_show_name INTEGER NOT NULL DEFAULT 0');
   addColumn('attachments', 'kind', "kind TEXT NOT NULL DEFAULT 'document'");

@@ -12,11 +12,40 @@ const fail = (condition, status, message) => {
 /* الحساب يحمل رقمًا جامعيًا أو قوميًا (واحد على الأقل). للعرض: الجامعي، وإلا آخر ٤ أرقام من القومي. */
 const idShown = (u) =>
   u.student_id || (u.national_id ? 'ق.م ••••' + String(u.national_id).slice(-4) : null);
-const cleanUser = ({ password, national_id, ...user }) => ({
+const cleanUser = ({ password, national_id, avatar_blob, ...user }) => ({
   ...user,
   student_id: idShown({ ...user, national_id }),
 });
 const YEARS = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'];
+/* يجب أن يطابق validatePhone في src/registration.ts */
+const validatePhone = (input) => {
+  let v = normalizeDigits(input).replace(/^\+/, '');
+  if (!v) return { ok: true, value: null };
+  if (v.startsWith('0020')) v = v.slice(4);
+  else if (v.startsWith('20') && v.length === 12) v = v.slice(2);
+  if (/^1[0125][0-9]{8}$/.test(v)) v = '0' + v;
+  if (!/^01[0125][0-9]{8}$/.test(v))
+    return { ok: false, error: 'رقم الموبايل المصري ١١ رقمًا ويبدأ بـ 01.' };
+  return { ok: true, value: v };
+};
+const notify = (state, userId, title, body = '', link = null) => {
+  state.notifications ||= [];
+  const id = state.notifications.reduce((m, n) => Math.max(m, n.id), 0) + 1;
+  state.notifications.push({
+    id,
+    user_id: userId,
+    title,
+    body: String(body).slice(0, 300),
+    link,
+    created_at: new Date().toISOString(),
+    read: false,
+  });
+  const mine = state.notifications.filter((n) => n.user_id === userId);
+  if (mine.length > 100)
+    state.notifications = state.notifications.filter(
+      (n) => n.user_id !== userId || mine.slice(-100).includes(n),
+    );
+};
 /* يجب أن يطابق src/terms.ts */
 const TERMS_VERSION = '2026-10-v1';
 const normalizeDigits = (v) =>
@@ -149,6 +178,8 @@ function publicRequest(r, state, faculty) {
   return {
     ...fields,
     student_name: u.name,
+    student_phone: u.phone || null,
+    student_avatar: u.avatar_v || 0,
     student_id: idShown(u),
     year: u.year,
     gallery: {
@@ -299,10 +330,13 @@ async function handle(request, url) {
           'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.',
         );
         const id = state.nextUser++;
+        const phone = validatePhone(input.phone);
+        fail(phone.ok, 400, phone.error);
         state.users.push({
           id,
           name,
           email,
+          phone: phone.value,
           student_id: studentId || null,
           password,
           year: input.year,
@@ -353,6 +387,7 @@ async function handle(request, url) {
           profile: {
             name: user.name,
             email: user.email,
+            phone: user.phone || null,
             year: user.year,
             idShown: idShown(user),
             hasUniversityId: Boolean(user.student_id),
@@ -396,6 +431,65 @@ async function handle(request, url) {
       if (route === '/profile/onboarding' && method === 'PUT') {
         studentOnly();
         user.onboarding_dismissed = input.dismissed ? 1 : 0;
+        return json({ ok: true });
+      }
+      if (route === '/notifications' && method === 'GET') {
+        const mine = (state.notifications || []).filter((n) => n.user_id === user.id);
+        return json({
+          notifications: mine
+            .slice(-30)
+            .reverse()
+            .map(({ user_id, ...n }) => n),
+          unread: mine.filter((n) => !n.read).length,
+        });
+      }
+      if (route === '/notifications/read' && method === 'POST') {
+        for (const n of state.notifications || [])
+          if (n.user_id === user.id && (!input.id || n.id === input.id)) n.read = true;
+        return json({ ok: true });
+      }
+      if (route === '/profile/avatar' && method === 'POST') {
+        studentOnly();
+        fail(file.size <= 2 * 1024 * 1024, 400, 'الصورة أكبر من ٢ ميجابايت أو غير صالحة.');
+        fail(file.type !== 'application/pdf', 400, 'اختر صورة PNG أو JPG صحيحة.');
+        user.avatar_blob = file;
+        user.avatar_v = Date.now();
+        return json({ ok: true }, 201);
+      }
+      if (route === '/profile/avatar' && method === 'DELETE') {
+        user.avatar_blob = null;
+        user.avatar_v = 0;
+        return json({ ok: true });
+      }
+      const avatarMatch = route.match(/^\/avatar\/(\d+)$/);
+      if (avatarMatch && method === 'GET') {
+        const owner = state.users.find((u) => u.id === Number(avatarMatch[1]));
+        fail(user.id === Number(avatarMatch[1]) || user.role !== 'student', 403, 'غير مسموح.');
+        fail(owner && owner.avatar_blob, 404, 'لا توجد صورة.');
+        return new Response(owner.avatar_blob, {
+          headers: { 'Content-Type': owner.avatar_blob.type, 'Cache-Control': 'private, max-age=3600' },
+        });
+      }
+      if (route === '/profile/phone' && method === 'PUT') {
+        studentOnly();
+        const phone = validatePhone(input.phone);
+        fail(phone.ok, 400, phone.error);
+        user.phone = phone.value;
+        return json({ ok: true });
+      }
+      if (route === '/profile/email' && method === 'PUT') {
+        studentOnly();
+        const email = String(input.email || '')
+          .trim()
+          .toLowerCase();
+        fail(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 400, 'راجع البريد الإلكتروني.');
+        fail(user.password === input.password, 403, 'كلمة المرور غير صحيحة.');
+        fail(
+          !state.users.some((u) => u.id !== user.id && u.email.toLowerCase() === email),
+          409,
+          'هذا البريد مستخدم في حساب آخر.',
+        );
+        user.email = email;
         return json({ ok: true });
       }
       const staff = () =>
@@ -549,6 +643,14 @@ async function handle(request, url) {
             version: r.version,
           });
           record(r, user, 'submitted', 'تم تقديم النشاط للمراجعة');
+          for (const u of state.users.filter((u) => u.role !== 'student' && u.active))
+            notify(
+              state,
+              u.id,
+              r.version > 1 ? 'طلب أُعيد إرساله للمراجعة' : 'طلب جديد للمراجعة',
+              `${user.name} — ${r.title}`,
+              `/requests/${r.id}`,
+            );
           return json({ request: publicRequest(r, state, faculty) });
         }
         if (action === 'gallery' && method === 'PUT') {
@@ -643,6 +745,14 @@ async function handle(request, url) {
           input.hidden ? 'gallery_hidden' : 'gallery_shown',
           input.hidden ? 'إخفاء النشاط من المعرض العام' : 'إظهار النشاط في المعرض العام',
         );
+        if (input.hidden)
+          notify(
+            state,
+            r.user_id,
+            'أُخفي نشاطك من المعرض العام',
+            'راجع مكتب النشاط الطلابي لو عندك استفسار. لا يؤثر هذا على اعتماد نشاطك.',
+            '/activity',
+          );
         return json({ request: publicRequest(r, state, faculty) });
       }
       match = route.match(/^\/staff\/requests\/(\d+)\/review$/);
@@ -693,6 +803,15 @@ async function handle(request, url) {
           action === 'revoke' ? 'revoked' : action === 'reopen' ? 'reopened' : target,
           note,
         );
+        const text = {
+          approve: ['تم اعتماد نشاطك', `أُضيفت ${faculty.points} درجة إلى سجلك.`],
+          revision: ['مطلوب استكمال طلبك', note],
+          reject: ['لم يُعتمد طلبك', note],
+          cancel: ['تم إلغاء طلبك', note],
+          reopen: ['أُعيد فتح طلبك للتعديل', note],
+          revoke: ['تم سحب اعتماد نشاطك', note],
+        }[action];
+        notify(state, r.user_id, text[0], text[1], '/activity');
         return json({ request: publicRequest(r, state, faculty) });
       }
       if (route.startsWith('/admin/')) admin();
