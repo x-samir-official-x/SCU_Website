@@ -1645,3 +1645,59 @@ tbody tr:hover .avatar {
     width: auto;
   }
 }
+
+/* ===== صفحة إنشاء الحساب: أعمدة على الديسكتوب، وإبراز الحقل المعيب، وإظهار كلمة المرور ===== */
+.lp-register .lp-password {
+  position: relative;
+  display: block;
+}
+.lp-register .lp-password input {
+  padding-left: 48px; /* فيزيائي: الحقل LTR والزر على يساره */
+}
+.lp-register .lp-password-toggle {
+  position: absolute;
+  left: 6px;
+  top: 5px;
+  bottom: 0;
+  margin: auto 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--c-ink-2, #445774);
+  cursor: pointer;
+}
+.lp-register .lp-password-toggle:hover {
+  background: #eef3fb;
+}
+.lp-register input[aria-invalid='true'],
+.lp-register select[aria-invalid='true'] {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.14);
+}
+@media (min-width: 900px) {
+  .lp-register > section:has(.lp-register-form) {
+    max-width: 780px;
+  }
+  .lp-register-form {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 22px;
+    align-items: start;
+  }
+  .lp-register-form > label {
+    align-content: start;
+  }
+  .lp-register-form .lp-span-2 {
+    grid-column: 1 / -1;
+  }
+  .lp-register-form .lp-ids {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lp-register-form .lp-ids legend,
+  .lp-register-form .lp-ids small {
+    grid-column: 1 / -1;
+  }
+}

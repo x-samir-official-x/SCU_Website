@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   Users,
   X,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { api, logoSrc, useSession } from './lib';
 import type { GalleryPost } from './types';
@@ -556,6 +558,9 @@ export function Register() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [invalid, setInvalid] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const bad = (field: string) => (invalid === field ? true : undefined);
   const open = Boolean(session.preview || session.registration);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -566,8 +571,13 @@ export function Register() {
     const checked = validateRegistration(data);
     if (!checked.ok) {
       setError(checked.error);
+      setInvalid(checked.field ?? '');
+      // التركيز على الحقل المعنيّ (والتمرير إليه) بدل ترك الرسالة وحدها أسفل النموذج.
+      const field = checked.field ? event.currentTarget.elements.namedItem(checked.field) : null;
+      if (field instanceof HTMLElement) field.focus();
       return;
     }
+    setInvalid('');
     setBusy(true);
     setError('');
     try {
@@ -602,17 +612,30 @@ export function Register() {
                 ? 'حساب تجريبي داخل متصفحك فقط. استخدم بيانات وهمية؛ التحقق من القيد الجامعي غير مفعّل.'
                 : 'أنشئ حسابك لتسجيل نشاطك ومتابعة اعتماده.'}
             </p>
-            <form onSubmit={submit} noValidate>
-              <label>
+            <form
+              onSubmit={submit}
+              noValidate
+              className="lp-register-form"
+              onInput={() => invalid && setInvalid('')}
+            >
+              <label className="lp-span-2">
                 الاسم الكامل
-                <input name="name" required minLength={3} maxLength={100} autoComplete="name" />
+                <input
+                  name="name"
+                  required
+                  minLength={3}
+                  maxLength={100}
+                  autoComplete="name"
+                  aria-invalid={bad('name')}
+                />
               </label>
-              <fieldset className="lp-ids">
+              <fieldset className="lp-ids lp-span-2">
                 <legend>اكتب أحد الرقمين على الأقل</legend>
                 <label>
                   الرقم الجامعي (الموجود على الكارنيه)
                   <input
                     name="student_id"
+                    aria-invalid={bad('student_id')}
                     inputMode="numeric"
                     dir="ltr"
                     maxLength={20}
@@ -623,6 +646,7 @@ export function Register() {
                   الرقم القومي
                   <input
                     name="national_id"
+                    aria-invalid={bad('national_id')}
                     inputMode="numeric"
                     dir="ltr"
                     maxLength={20}
@@ -635,6 +659,7 @@ export function Register() {
                 البريد الإلكتروني
                 <input
                   name="email"
+                  aria-invalid={bad('email')}
                   type="email"
                   required
                   autoComplete="email"
@@ -646,6 +671,7 @@ export function Register() {
                 رقم الموبايل (اختياري)
                 <input
                   name="phone"
+                  aria-invalid={bad('phone')}
                   type="tel"
                   inputMode="tel"
                   dir="ltr"
@@ -657,29 +683,42 @@ export function Register() {
               </label>
               <label>
                 {session.preview ? 'كلمة المرور التجريبية' : 'كلمة المرور'}
-                <input
-                  name="password"
-                  type="password"
-                  required
-                  minLength={8}
-                  maxLength={100}
-                  autoComplete="new-password"
-                  dir="ltr"
-                />
+                <span className="lp-password">
+                  <input
+                    name="password"
+                    aria-invalid={bad('password')}
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    maxLength={100}
+                    autoComplete="new-password"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    className="lp-password-toggle"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </span>
                 <small>
-                  ٨ أحرف على الأقل.{session.preview ? ' لا تستخدم كلمة مرور حقيقية.' : ''}
+                  ٨ أحرف على الأقل، ولا تكون شائعة (مثل 12345678) ولا تحتوي بريدك أو رقمك.
+                  {session.preview ? ' لا تستخدم كلمة مرور حقيقية.' : ''}
                 </small>
               </label>
               <label>
                 الفرقة الدراسية
-                <select name="year" required>
+                <select name="year" required aria-invalid={bad('year')}>
                   <option value="">اختر الفرقة</option>
                   {['الأولى', 'الثانية', 'الثالثة', 'الرابعة'].map((y) => (
                     <option key={y}>الفرقة {y}</option>
                   ))}
                 </select>
               </label>
-              <details className="lp-terms">
+              <details className="lp-terms lp-span-2">
                 <summary>اقرأ شروط الاستخدام</summary>
                 <ol>
                   {TERMS.map((t) => (
@@ -689,20 +728,25 @@ export function Register() {
                   ))}
                 </ol>
               </details>
-              <label className="checkbox-label lp-terms-accept">
-                <input type="checkbox" name="accepted_terms" required />
+              <label className="checkbox-label lp-terms-accept lp-span-2">
+                <input
+                  type="checkbox"
+                  name="accepted_terms"
+                  required
+                  aria-invalid={bad('accepted_terms')}
+                />
                 <span>قرأت شروط الاستخدام وأوافق عليها.</span>
               </label>
               {error && (
                 <p
-                  className="form-error"
+                  className="form-error lp-span-2"
                   role="alert"
                   ref={(el) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                 >
                   {error}
                 </p>
               )}
-              <button className="lp-button lp-navy" disabled={busy}>
+              <button className="lp-button lp-navy lp-span-2" disabled={busy}>
                 {busy
                   ? 'جارٍ إنشاء الحساب…'
                   : session.preview

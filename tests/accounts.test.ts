@@ -120,3 +120,18 @@ for (const open of [false, true]) {
     assert.equal(login.status, 200);
   });
 }
+
+test('registration errors name the offending field, in page order', () => {
+  const field = (extra: Record<string, unknown>) => {
+    const r = validateRegistration({ ...base, student_id: '20261234', ...extra });
+    return r.ok ? null : r.field;
+  };
+  assert.equal(field({ name: 'ا' }), 'name');
+  assert.equal(field({ student_id: '', national_id: '' }), 'student_id');
+  assert.equal(field({ national_id: '123' }), 'national_id');
+  assert.equal(field({ email: 'bad' }), 'email');
+  assert.equal(field({ phone: '123' }), 'phone');
+  assert.equal(field({ password: '12345678' }), 'password');
+  assert.equal(field({ year: 'x' }), 'year');
+  assert.equal(field({ accepted_terms: false }), 'accepted_terms');
+});
