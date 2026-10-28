@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { ActivityRequest, Faculty } from '../src/types';
 import { browserExecutable } from './browser';
 
-export const FORM_TEMPLATE_VERSION = 4;
+export const FORM_TEMPLATE_VERSION = 5;
 
 interface Snapshot {
   student: { name: string; student_id: string; national_id?: string; year: string };
@@ -25,19 +25,21 @@ export async function renderForm(snapshot: Snapshot) {
   const bold = readFileSync(new URL('../public/fonts/Tajawal-Bold.ttf', import.meta.url)).toString(
     'base64',
   );
-  const identities = readFileSync(
-    new URL(`../public${f.logoPath}`, import.meta.url),
-  ).toString('base64');
+  const identities = readFileSync(new URL(`../public${f.logoPath}`, import.meta.url)).toString(
+    'base64',
+  );
   const field = (label: string, value: string) =>
     `<div class="field"><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`;
   const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>استمارة النشاط الطلابي — ${r.id}</title><style>
     @font-face{font-family:Arabic;src:url(data:font/ttf;base64,${regular})} @font-face{font-family:Arabic;src:url(data:font/ttf;base64,${bold});font-weight:700}
     *{box-sizing:border-box;-webkit-print-color-adjust:exact} body{font-family:Arabic,sans-serif;color:#0c1f3f;font-size:12px;line-height:1.65;margin:0}
-    .top{background:linear-gradient(135deg,#061629,#102b50 60%,#1a3d70);color:#fff;border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:18px;border-bottom:3px solid #e0c185}
-    .identities{width:132px;height:auto;object-fit:contain;background:#fff;border-radius:8px;padding:5px 8px}
-    .institution{flex:1}.institution b{display:block;font-size:24px;line-height:1.3;padding:2px 0}.institution span{display:block;font-size:12px;color:#cfe0ff}
-    .institution i{font-style:normal;color:#e0c185;font-size:11px}
-    .badge{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);padding:8px 12px;border-radius:8px;font-size:11px;text-align:center;line-height:1.7}.badge b{display:block;font-size:14px;color:#e0c185;direction:ltr}
+    .top{display:flex;align-items:center;gap:16px;padding:0 0 14px;border-bottom:2px solid #102b50;position:relative}
+    .top:after{content:"";position:absolute;right:0;bottom:-2px;width:72px;height:2px;background:#c9a24a}
+    .identities{width:150px;height:auto;object-fit:contain;flex:none}
+    .rule{width:1px;align-self:stretch;background:#d5deec;margin:4px 0}
+    .institution{flex:1}.institution b{display:block;font-size:23px;line-height:1.35;padding:2px 0;color:#102b50}.institution span{display:block;font-size:12px;color:#5c6e85}
+    .institution i{font-style:normal;color:#a07a2c;font-size:11.5px;font-weight:700;display:block}
+    .badge{border:1px solid #102b50;padding:7px 14px;border-radius:6px;font-size:10.5px;text-align:center;line-height:1.7;color:#445774}.badge b{display:block;font-size:14px;color:#102b50;direction:ltr}
     h1{font-size:22px;margin:22px 0 4px;color:#102b50} h2{font-size:13.5px;margin:18px 0 8px;color:#102b50;display:flex;align-items:center;gap:8px}h2:before{content:"";width:4px;height:15px;background:#e0c185;border-radius:2px}p{margin:6px 0}
     .muted,small{color:#5c6e85}
     .notice{background:#e8f0ff;padding:11px 14px;border-right:3px solid #235ce3;border-radius:6px;margin:14px 0}.notice.demo strong{display:block;color:#a32020}
@@ -46,7 +48,7 @@ export async function renderForm(snapshot: Snapshot) {
     .description{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #dce5f2;border-radius:8px;padding:14px;min-height:100px;background:#fafcff}
     .signatures{display:flex;gap:20px;margin-top:30px}.signatures div{flex:1;border-top:1px dashed #9aa9bf;padding-top:9px}
     footer{margin-top:28px;border-top:1px solid #dce5f2;padding-top:12px;font-size:9.5px;color:#6b7a90}
-  </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="institution"><b>${escape(f.platformName || f.brand)}</b>${f.platformName ? `<i>${escape(f.brand)}</i>` : ""}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
+  </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="rule"></div><div class="institution"><b>${escape(f.platformName || f.brand)}</b>${f.platformName ? `<i>${escape(f.brand)}</i>` : ''}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
   <h1>استمارة تقديم النشاط الطلابي</h1><p class="muted">${escape(f.period)}</p>
   <div class="notice">هذه الاستمارة تثبت تقديم الطلب فقط. اعتماد النشاط واحتساب الدرجة يستلزمان مراجعة الموظف المختص.</div>
   <h2>أولًا: بيانات الطالب</h2><div class="grid">${field('اسم الطالب', student.name)}${student.student_id ? field('الرقم الجامعي', student.student_id) : field('الرقم القومي', student.national_id ?? '')}${field('الفرقة الدراسية', student.year)}${field('الكلية', f.faculty)}</div>
