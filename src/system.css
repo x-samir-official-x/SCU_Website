@@ -1635,3 +1635,13 @@ tbody tr:hover .avatar {
   font-size: 14px;
   line-height: 1.8;
 }
+
+/* لوحة الإشعارات على الموبايل: تثبَّت داخل الشاشة بدل أن تمتد خارجها */
+@media (max-width: 640px) {
+  .notif-panel {
+    position: fixed;
+    top: 76px;
+    inset-inline: 16px;
+    width: auto;
+  }
+}
