@@ -797,7 +797,7 @@ export function ActivityPage() {
           )}
           <Attachments files={r?.attachments} canDelete={editable && !busy} onDelete={removeFile} />
           {!editable && !r?.attachments?.length && (
-            <p className="muted">لا توجد مرفقات في هذا السجل التجريبي.</p>
+            <p className="muted">لا توجد مرفقات في هذا السجل.</p>
           )}
           {(editable || r?.gallery?.consent) && (
             <GalleryOptIn

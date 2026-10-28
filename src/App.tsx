@@ -199,13 +199,6 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             <ShieldCheck size={17} />
             <p>الدخول الرسمي للطلاب يُفعّل بعد اعتماد آلية التحقق والربط مع الجامعة.</p>
           </div>
-          {session.demo && (
-            <p className="demo-disclaimer">
-              {session.preview
-                ? 'معاينة تفاعلية ببيانات محلية في متصفحك. لا تستخدم كلمات مرور أو مستندات شخصية حقيقية.'
-                : 'بيئة تجريبية ببيانات وهمية. لا تستخدم بيانات أو مستندات شخصية حقيقية.'}
-            </p>
-          )}
         </div>
         <footer className="login-copyright">
           {session.faculty.faculty} — {session.faculty.university}
@@ -429,19 +422,6 @@ function Shell() {
             alt="شعار الجامعة والكلية"
           />
         </div>
-        {session.demo && (
-          <div className="demo-bar">
-            <span>
-              <span className="demo-dot" />
-              {session.preview ? 'معاينة تفاعلية' : 'نسخة تجريبية'}
-            </span>
-            <p>
-              {session.preview
-                ? 'البيانات محفوظة في هذا المتصفح فقط؛ ليست مشتركة بين الأجهزة ولا تصلح للاستخدام الرسمي.'
-                : 'بيانات للعرض والاختبار فقط — الربط الرسمي بالجامعة غير مفعّل.'}
-            </p>
-          </div>
-        )}
         <main className="main-content" id="main-content" tabIndex={-1}>
           <div className="route-surface" key={location.pathname}>
             <Routes>
@@ -545,13 +525,6 @@ function Guide() {
             <p>{content}</p>
           </article>
         ))}
-      </div>
-      <div className="info-box">
-        <ShieldCheck size={22} />
-        <p>
-          النماذج والأنشطة الظاهرة في النسخة التجريبية ليست لائحة رسمية. تُعتمد شروط الاستحقاق
-          ونموذج الاستمارة والفترة الدراسية قبل التشغيل الفعلي.
-        </p>
       </div>
     </>
   );
