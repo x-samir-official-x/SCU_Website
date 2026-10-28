@@ -18,6 +18,7 @@ import {
   Sparkles,
   Users,
   X,
+  UserRound,
 } from 'lucide-react';
 import {
   api,
@@ -33,6 +34,7 @@ import {
 } from './lib';
 import type { Role, Session } from './types';
 import { StudentDashboard, ActivityPage, DocumentsPage } from './Student';
+import { ProfilePage } from './Profile';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
 
 import { BrandMark as Mark, AcademicSeal, LoginProcess } from './Brand';
@@ -231,6 +233,7 @@ function Shell() {
         { path: '/activity', label: 'نشاطي', icon: ClipboardCheck },
         { path: '/documents', label: 'المستندات والاستمارة', icon: FileText },
         { path: '/community', label: 'أنشطة الطلاب', icon: Users },
+        { path: '/profile', label: 'ملفي الشخصي', icon: UserRound },
         { path: '/welcome', label: 'واجهة البوابة', icon: GraduationCap },
       ]
     : [
@@ -379,6 +382,12 @@ function Shell() {
                 <div className="account-menu" data-state={accountMenu.state}>
                   <strong>{user.name}</strong>
                   <small dir="ltr">{user.email}</small>
+                  {isStudent && (
+                    <Link to="/profile" onClick={() => setAccountOpen(false)}>
+                      <UserRound size={16} />
+                      ملفي الشخصي
+                    </Link>
+                  )}
                   <button onClick={logout}>
                     <LogOut size={16} />
                     تسجيل الخروج
@@ -424,6 +433,7 @@ function Shell() {
                 <>
                   <Route path="/activity" element={<ActivityPage />} />
                   <Route path="/documents" element={<DocumentsPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
                 </>
               ) : (
                 <>
@@ -492,7 +502,7 @@ function Guide() {
     ],
     [
       'ما المتاح في النسخة الحالية؟',
-      'تقديم الأنشطة، والمرفقات، والاستمارة، والمراجعة والاعتماد، وإدارة الموظفين متاحة للاختبار. الدخول بحساب الجامعة وGoogle والمساعد الذكي والربط المركزي تحتاج إعدادًا وتكاملًا رسميًا؛ ليست مفعلة حاليًا.',
+      'تقديم الأنشطة، والمرفقات، والاستمارة، والمراجعة والاعتماد، وإدارة الموظفين متاحة للاختبار. ومعها مساعد الكتابة المحلي والمعرض العام الاختياري وملفك الشخصي. الدخول بحساب الجامعة وGoogle والربط المركزي تحتاج إعدادًا وتكاملًا رسميًا؛ ليست مفعلة حاليًا.',
     ],
   ];
   return (

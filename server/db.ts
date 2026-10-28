@@ -63,6 +63,7 @@ export function openDatabase(dataDir: string, demo: boolean) {
   addColumn('requests', 'gallery_hidden', 'gallery_hidden INTEGER NOT NULL DEFAULT 0');
   addColumn('users', 'terms_version', 'terms_version TEXT');
   addColumn('users', 'terms_accepted_at', 'terms_accepted_at TEXT');
+  addColumn('users', 'onboarding_dismissed', 'onboarding_dismissed INTEGER NOT NULL DEFAULT 0');
   addColumn('requests', 'gallery_show_name', 'gallery_show_name INTEGER NOT NULL DEFAULT 0');
   addColumn('attachments', 'kind', "kind TEXT NOT NULL DEFAULT 'document'");
   const marker = db.prepare('SELECT value FROM metadata WHERE key=?').get('dataset') as

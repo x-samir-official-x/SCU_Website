@@ -12,7 +12,8 @@ import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
 import { checkCertificate } from '../src/certificate';
-import { validateRegistration } from '../src/registration';
+import { validateRegistration, YEARS } from '../src/registration';
+import { normalizeDigits } from '../src/terms';
 import type { ActivityRequest, Role, User } from '../src/types';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -105,7 +106,7 @@ export function createApp(
     if (cookie && /^[a-f0-9]{64}$/.test(cookie)) {
       const session = db
         .prepare(
-          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
+          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
         )
         .get(hash(cookie), Date.now());
       if (session) {
@@ -322,6 +323,138 @@ export function createApp(
       res.status(201).json({ ok: true });
     },
   );
+  const tokenHash = (req: Request) => {
+    const raw = req.headers.cookie
+      ?.split(';')
+      .map((v) => v.trim())
+      .find((v) => v.startsWith('activity_session='))
+      ?.slice(17);
+    return raw ? hash(raw) : '';
+  };
+  const studentOnly = (user: User) =>
+    assert(user.role === 'student', 403, 'هذه الصفحة للطلاب فقط.');
+  /** الملف الشخصي: لا يُرجع أي رقم كامل (الجامعي يُعرض كما هو، والقومي آخر ٤ أرقام فقط). */
+  app.get('/api/profile', auth, (_req, res) => {
+    const user: User = res.locals.user;
+    studentOnly(user);
+    const row = db
+      .prepare(
+        'SELECT name,email,year,student_id,national_id,created_at,terms_version,terms_accepted_at FROM users WHERE id=?',
+      )
+      .get(user.id) as {
+      name: string;
+      email: string;
+      year: string | null;
+      student_id: string | null;
+      national_id: string | null;
+      created_at: string;
+      terms_version: string | null;
+      terms_accepted_at: string | null;
+    };
+    const history = db
+      .prepare(
+        "SELECT id,period,title,status,submitted_at FROM requests WHERE user_id=? AND status!='draft' ORDER BY id DESC",
+      )
+      .all(user.id) as { id: number; period: string; title: string; status: string }[];
+    res.json({
+      profile: {
+        name: row.name,
+        email: row.email,
+        year: row.year,
+        idShown: user.student_id,
+        hasUniversityId: Boolean(row.student_id),
+        hasNationalId: Boolean(row.national_id),
+        createdAt: row.created_at,
+        termsVersion: row.terms_version,
+        termsAcceptedAt: row.terms_accepted_at,
+      },
+      history: history.map((h) => ({ ...h, points: h.status === 'approved' ? faculty.points : 0 })),
+      totalPoints: history.filter((h) => h.status === 'approved').length * faculty.points,
+    });
+  });
+  app.put('/api/profile/year', auth, (req, res) => {
+    const user: User = res.locals.user;
+    studentOnly(user);
+    const input = z.object({ year: z.string() }).parse(req.body);
+    assert(YEARS.includes(input.year), 400, 'اختر الفرقة الدراسية.');
+    db.prepare('UPDATE users SET year=? WHERE id=?').run(input.year, user.id);
+    res.json({ ok: true });
+  });
+  app.put('/api/profile/university-id', auth, (req, res) => {
+    const user: User = res.locals.user;
+    studentOnly(user);
+    const current = db.prepare('SELECT student_id FROM users WHERE id=?').get(user.id) as {
+      student_id: string | null;
+    };
+    assert(!current.student_id, 409, 'الرقم الجامعي مسجل بالفعل ولا يمكن تغييره من هنا.');
+    const value = normalizeDigits(z.object({ studentId: z.unknown() }).parse(req.body).studentId);
+    assert(/^[0-9]{4,20}$/.test(value), 400, 'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
+    assert(
+      !db.prepare('SELECT 1 AS x FROM users WHERE student_id=?').get(value),
+      409,
+      'هذا الرقم الجامعي مستخدم في حساب آخر.',
+    );
+    db.prepare('UPDATE users SET student_id=? WHERE id=?').run(value, user.id);
+    res.json({ ok: true });
+  });
+  app.put(
+    '/api/profile/password',
+    auth,
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 10,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const user: User = res.locals.user;
+      const input = z
+        .object({ current: z.string().max(128), password: z.string().max(128) })
+        .parse(req.body);
+      const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(user.id) as {
+        password_hash: string;
+      };
+      const [salt, expected] = row.password_hash.split(':');
+      assert(
+        timingSafeEqual(scryptSync(input.current, salt, 64), Buffer.from(expected, 'hex')),
+        403,
+        'كلمة المرور الحالية غير صحيحة.',
+      );
+      assert(
+        input.password.length >= 8 && input.password.length <= 100,
+        400,
+        'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.',
+      );
+      assert(input.password !== input.current, 400, 'اختر كلمة مرور مختلفة عن الحالية.');
+      db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(
+        hashPassword(input.password),
+        user.id,
+      );
+      // تُغلق كل الجلسات الأخرى؛ تبقى الجلسة الحالية فقط
+      db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash!=?').run(
+        user.id,
+        tokenHash(req),
+      );
+      res.json({ ok: true });
+    },
+  );
+  app.post('/api/profile/logout-others', auth, (req, res) => {
+    const user: User = res.locals.user;
+    db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash!=?').run(
+      user.id,
+      tokenHash(req),
+    );
+    res.json({ ok: true });
+  });
+  app.put('/api/profile/onboarding', auth, (req, res) => {
+    const user: User = res.locals.user;
+    studentOnly(user);
+    const input = z.object({ dismissed: z.boolean() }).parse(req.body);
+    db.prepare('UPDATE users SET onboarding_dismissed=? WHERE id=?').run(
+      input.dismissed ? 1 : 0,
+      user.id,
+    );
+    res.json({ ok: true });
+  });
   app.post('/api/logout', auth, (req, res) => {
     const raw = req.headers.cookie
       ?.split(';')

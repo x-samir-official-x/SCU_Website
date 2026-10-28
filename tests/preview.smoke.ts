@@ -173,6 +173,16 @@ try {
   );
   assert.equal(registered.role, 'student');
   assert.equal(registered.student_id, '20269999');
+  // بطاقة المهمة تظهر فورًا بعد إنشاء الحساب، ثم الملف الشخصي
+  await other.getByRole('heading', { name: /مهمتك الأولى/ }).waitFor();
+  await other.getByRole('link', { name: 'ملفي الشخصي', exact: true }).first().click();
+  await other.getByRole('heading', { name: 'ملفي الشخصي', level: 1 }).waitFor();
+  assert.equal((await other.getByText('20269999').count()) > 0, true);
+  await other.getByLabel('كلمة المرور الحالية').fill('Example2026!');
+  await other.getByLabel(/^كلمة المرور الجديدة/).fill('Changed2026!');
+  await other.getByLabel('أعد كتابة كلمة المرور الجديدة').fill('Changed2026!');
+  await other.getByRole('button', { name: 'تغيير كلمة المرور' }).click();
+  await other.getByText('تم تغيير كلمة المرور').waitFor();
   const forbidden = await other.evaluate(async () => (await fetch('/api/admin/staff')).status);
   assert.equal(forbidden, 403);
   await other.getByRole('link', { name: 'أنشطة الطلاب', exact: true }).click();

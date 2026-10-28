@@ -1035,3 +1035,309 @@ tbody tr:hover .avatar {
   max-height: 220px;
   overflow: auto;
 }
+
+/* ===== ملفي الشخصي + بطاقة المهمة ===== */
+.account-menu a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-navy, #102b50);
+  border-top: 1px solid var(--line, #dce5f2);
+  padding: 12px 0 0;
+  margin-top: 8px;
+  text-decoration: none;
+}
+.account-menu a + button {
+  margin-top: 8px;
+}
+.mission-card {
+  margin-bottom: 18px;
+  padding: 22px;
+  border: 1px solid #cfdcf5;
+  background: linear-gradient(160deg, #f4f8ff, #fff 60%);
+}
+.mission-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  align-items: center;
+}
+.mission-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.mission-head p {
+  margin: 2px 0 0;
+  color: var(--c-ink-2, #445774);
+}
+.mission-flag {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--c-navy, #102b50);
+  color: #fff;
+}
+.mission-progress {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 99px;
+  background: #dfe8f7;
+  overflow: hidden;
+}
+.mission-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #235ce3, #4f84ff);
+  border-radius: inherit;
+  transition: width 0.4s ease;
+}
+.mission-steps {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.mission-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.mission-step > div {
+  flex: 1;
+  min-width: 0;
+}
+.mission-dot {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #e6edf9;
+  color: #45658e;
+}
+.mission-step.is-done .mission-dot {
+  background: #177a3c;
+  color: #fff;
+}
+.mission-step.is-done strong {
+  color: #45658e;
+  font-weight: 600;
+}
+.mission-step.is-current .mission-dot {
+  background: #235ce3;
+  color: #fff;
+  box-shadow: 0 0 0 4px #235ce32a;
+}
+.mission-step.is-attention .mission-dot {
+  background: #b7791f;
+  color: #fff;
+  box-shadow: 0 0 0 4px #b7791f2a;
+}
+.mission-tips {
+  margin: 6px 0 10px;
+  padding: 0 18px 0 0;
+  color: var(--c-ink-2, #445774);
+  font-size: 0.92rem;
+  line-height: 1.8;
+}
+.mission-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mission-dismiss {
+  margin-top: 14px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #45658e;
+  font: inherit;
+  font-size: 0.88rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 22px;
+  margin-bottom: 18px;
+}
+.profile-avatar {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 800 1.6rem var(--font-display, Cairo, sans-serif);
+  color: #fff;
+  background: linear-gradient(135deg, #102b50, #235ce3);
+}
+.profile-id {
+  flex: 1;
+  min-width: 200px;
+}
+.profile-id h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.profile-id p {
+  margin: 2px 0 8px;
+  color: var(--c-ink-2, #445774);
+}
+.profile-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.profile-chips span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: #eaf1ff;
+  color: #1a3d70;
+  font-size: 0.85rem;
+}
+.profile-score {
+  text-align: center;
+  padding: 10px 18px;
+  border-radius: 14px;
+  background: #f1f5fc;
+}
+.profile-score strong {
+  display: block;
+  font: 800 1.4rem var(--font-display, Cairo, sans-serif);
+  color: #102b50;
+}
+.profile-score span {
+  font-size: 0.8rem;
+  color: #45658e;
+}
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.profile-card {
+  padding: 22px;
+}
+.profile-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+}
+.profile-list {
+  margin: 0 0 14px;
+  display: grid;
+  gap: 10px;
+}
+.profile-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--c-line, #dce5f2);
+}
+.profile-list dt {
+  color: var(--c-ink-2, #445774);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.profile-list dd {
+  margin: 0;
+  font-weight: 600;
+}
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-inline-start: 6px;
+  color: #235ce3;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.profile-terms {
+  margin: 0 0 14px;
+  padding: 12px 28px 12px 12px;
+  background: #f1f5fc;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.8;
+}
+.profile-year,
+.profile-inline label,
+.profile-form label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.profile-inline {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+.profile-form {
+  display: grid;
+  gap: 2px;
+}
+.profile-others {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.profile-history li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--c-line, #dce5f2);
+  border-radius: 12px;
+}
+.profile-history li > div {
+  flex: 1;
+  min-width: 160px;
+}
+.profile-history small {
+  display: block;
+  color: var(--c-ink-2, #445774);
+}
+.profile-points {
+  font-weight: 700;
+  color: #102b50;
+}
+@media (max-width: 560px) {
+  .mission-card,
+  .profile-card,
+  .profile-hero {
+    padding: 16px;
+  }
+}
