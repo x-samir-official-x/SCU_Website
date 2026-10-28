@@ -1,18 +1,14 @@
 import { useEffect, useState } from 'react';
 import facultyFallback from '../config/faculty.json';
 
-const SEEN = 'athar-splash-at';
-const EVERY_MS = 6 * 60 * 60 * 1000;
 const SHOW_MS = 2400;
 const LEAVE_MS = 800;
 
-/** تُعرض أول دخول ثم مرة كل ٦ ساعات، ولا تُعرض للأتمتة (الاختبارات) إلا بـ ?splash=1. */
+/** تُعرض مع كل فتح أو إعادة تحميل للموقع (وليس مع التنقل بين الصفحات)، ولا تُعرض للأتمتة (الاختبارات) إلا بـ ?splash=1. */
 function shouldShow(): boolean {
   try {
     if (new URLSearchParams(location.search).get('splash') === '1') return true;
-    if (navigator.webdriver) return false;
-    const last = Number(localStorage.getItem(SEEN) || 0);
-    return !last || Date.now() - last > EVERY_MS;
+    return !navigator.webdriver;
   } catch {
     return true;
   }
@@ -28,11 +24,6 @@ export function Splash() {
   );
   useEffect(() => {
     if (phase === 'off') return;
-    try {
-      if (phase === 'show') localStorage.setItem(SEEN, String(Date.now()));
-    } catch {
-      /* التخزين غير متاح؛ لا مشكلة */
-    }
     document.documentElement.classList.toggle('splash-lock', phase === 'show');
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const show = reduced ? 900 : SHOW_MS;
