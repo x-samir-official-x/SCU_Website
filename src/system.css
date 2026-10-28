@@ -555,7 +555,9 @@ tbody tr:hover .avatar {
   box-shadow: 0 24px 60px rgba(6, 22, 41, 0.4);
 }
 .toast.error {
-  background: rgba(122, 24, 36, 0.92);
+  background: rgba(122, 24, 36, 0.94);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
 }
 .toast .icon-button {
   color: #fff;
@@ -1621,4 +1623,15 @@ tbody tr:hover .avatar {
   flex: 1 1 auto;
   width: auto;
   background-color: transparent;
+}
+
+.form-notice {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff6e0;
+  border: 1px solid #f0d58a;
+  color: #5a4300;
+  font-size: 14px;
+  line-height: 1.8;
 }

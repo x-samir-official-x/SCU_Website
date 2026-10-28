@@ -5,23 +5,41 @@ import type { Session, Status } from './types';
 /** نسخة WebP خفيفة من الشعار للواجهة؛ ملف PNG الأصلي يبقى للاستمارة المطبوعة. */
 export const logoSrc = (path: string) => path.replace(/\.png$/i, '.webp');
 
+export const SESSION_EXPIRED = 'athar-session-expired';
 let csrf = '';
 export function setCsrf(value: string) {
   csrf = value;
 }
 export async function api<T = any>(url: string, options: RequestInit = {}): Promise<T> {
   const bodyIsForm = options.body instanceof FormData;
-  const response = await fetch(`/api${url}`, {
-    credentials: 'same-origin',
-    ...options,
-    headers: {
-      ...(options.body && !bodyIsForm ? { 'Content-Type': 'application/json' } : {}),
-      ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
-      ...options.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`/api${url}`, {
+      credentials: 'same-origin',
+      ...options,
+      headers: {
+        ...(options.body && !bodyIsForm ? { 'Content-Type': 'application/json' } : {}),
+        ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    // انقطاع الإنترنت أو توقف الخادم: رسالة عربية بدل رسالة المتصفح الإنجليزية
+    throw new Error('تعذر الاتصال. تأكد من اتصالك بالإنترنت ثم حاول مرة أخرى.');
+  }
   const data = await response.json().catch(() => ({ error: 'تعذر قراءة استجابة الخادم.' }));
-  if (!response.ok) throw new Error(data.error || 'تعذر إتمام العملية.');
+  if (!response.ok) {
+    // جلسة منتهية أثناء الاستخدام: نبلّغ التطبيق ليعيد المستخدم لصفحة الدخول
+    if (response.status === 401 && csrf && url !== '/login') {
+      try {
+        sessionStorage.setItem(SESSION_EXPIRED, '1');
+      } catch {
+        /* لا مشكلة */
+      }
+      window.dispatchEvent(new Event(SESSION_EXPIRED));
+    }
+    throw new Error(data.error || 'تعذر إتمام العملية.');
+  }
   return data;
 }
 export function useData<T>(url: string) {

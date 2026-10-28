@@ -27,6 +27,7 @@ import {
   Loading,
   SessionContext,
   setCsrf,
+  SESSION_EXPIRED,
   ToastProvider,
   useSession,
   usePresence,
@@ -50,6 +51,15 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [role, setRole] = useState<Role>('student');
+  const [expired] = useState(() => {
+    try {
+      const v = sessionStorage.getItem(SESSION_EXPIRED) === '1';
+      sessionStorage.removeItem(SESSION_EXPIRED);
+      return v;
+    } catch {
+      return false;
+    }
+  });
   const [accounts, setAccounts] = useState<{ role: Role; email: string; password: string }[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
@@ -147,6 +157,11 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
               <button className="text-button" onClick={() => choose(role)}>
                 تعبئة بيانات الحساب التجريبي <ChevronLeft size={14} />
               </button>
+            </div>
+          )}
+          {expired && (
+            <div className="form-notice" role="status">
+              انتهت جلستك. سجّل الدخول مرة أخرى للمتابعة.
             </div>
           )}
           <form onSubmit={submit} noValidate>
@@ -589,6 +604,12 @@ export default function App() {
   }
   useEffect(() => {
     refresh();
+  }, []);
+  useEffect(() => {
+    // عند انتهاء الجلسة نحدّث حالتها فيعود المستخدم تلقائيًا لصفحة الدخول
+    const onExpired = () => void refresh();
+    window.addEventListener(SESSION_EXPIRED, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED, onExpired);
   }, []);
   if (error) return <ErrorPanel message={error} retry={refresh} />;
   if (!session) return <Loading />;
