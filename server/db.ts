@@ -77,6 +77,10 @@ export function openDatabase(dataDir: string, demo: boolean) {
     token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
     email TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+    expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS email_outbox (
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL, to_addr TEXT NOT NULL, subject TEXT NOT NULL,
     text TEXT NOT NULL, html TEXT NOT NULL, created_at INTEGER NOT NULL,

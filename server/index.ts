@@ -11,7 +11,7 @@ import { openDatabase, faculty, hashPassword, now } from './db';
 import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
-import { mailerFromEnv, renderEmail, type Mailer } from './mailer';
+import { mailerFromEnv, renderEmail, inlineAttachments, type Mailer } from './mailer';
 import { checkCertificate } from '../src/certificate';
 import { validateRegistration, validatePhone, YEARS } from '../src/registration';
 import { normalizeDigits } from '../src/terms';
@@ -180,6 +180,12 @@ export function createApp(
   };
   // ===== البريد الإلكتروني (اختياري؛ معطّل حتى تُضبط إعدادات SMTP) =====
   const platform = faculty.platformName || faculty.brand;
+  const mailBrand = {
+    platform,
+    tagline: faculty.platformName ? faculty.brand : undefined,
+    faculty: faculty.faculty,
+    university: faculty.university,
+  };
   const enqueueEmail = (
     kind: string,
     to: string,
@@ -218,6 +224,7 @@ export function createApp(
             subject: m.subject,
             text: m.text,
             html: m.html,
+            attachments: inlineAttachments(m.html, root),
           });
           db.prepare('UPDATE email_outbox SET sent_at=?,last_error=NULL WHERE id=?').run(
             Date.now(),
@@ -231,6 +238,7 @@ export function createApp(
           console.error('تعذر إرسال بريد', m.id, (error as Error).message);
         }
       }
+      db.prepare('DELETE FROM password_resets WHERE expires_at<?').run(Date.now());
       // لا نحتفظ بنصوص الرسائل المرسلة أكثر من أسبوع
       db.prepare('DELETE FROM email_outbox WHERE sent_at IS NOT NULL AND sent_at<?').run(
         Date.now() - 7 * 24 * 3600 * 1000,
@@ -262,7 +270,7 @@ export function createApp(
       u.email,
       `أكّد بريدك الإلكتروني في ${platform}`,
       renderEmail({
-        platform,
+        ...mailBrand,
         heading: `أهلًا ${u.name.split(' ')[0]}`,
         lines: [`اضغط الزر التالي لتأكيد بريدك الإلكتروني في «${platform}». الرابط صالح ٢٤ ساعة.`],
         button: { label: 'تأكيد البريد', url: `${siteOrigin}/verify-email?token=${token}` },
@@ -295,7 +303,7 @@ export function createApp(
       u.email,
       `إشعار جديد في ${platform}`,
       renderEmail({
-        platform,
+        ...mailBrand,
         heading: 'عندك إشعار جديد',
         lines: [
           `يوجد إشعار جديد في حسابك على «${platform}». افتح الموقع للاطلاع عليه.`,
@@ -303,6 +311,63 @@ export function createApp(
         ],
         button: { label: 'فتح الموقع', url: `${siteOrigin}/dashboard` },
         footer: 'يمكنك إيقاف رسائل البريد من «ملفي الشخصي».',
+      }),
+    );
+  }
+  /** تنبيه أمني بعد تغيير كلمة المرور (من الملف الشخصي أو بالاستعادة). */
+  function securityAlert(userId: number, how: 'reset' | 'change') {
+    if (!mailer) return;
+    const u = db
+      .prepare('SELECT name,email,email_verified_at FROM users WHERE id=?')
+      .get(userId) as { name: string; email: string; email_verified_at: string | null } | undefined;
+    if (!u || (how === 'change' && !u.email_verified_at)) return;
+    enqueueEmail(
+      'security',
+      u.email,
+      `تم تغيير كلمة مرور حسابك في ${platform}`,
+      renderEmail({
+        ...mailBrand,
+        heading: `أهلًا ${u.name.split(' ')[0]}`,
+        lines: [
+          how === 'reset'
+            ? `تمت استعادة كلمة مرور حسابك في «${platform}» وتسجيل خروجك من كل الأجهزة.`
+            : `تم تغيير كلمة مرور حسابك في «${platform}» وتسجيل خروجك من باقي الأجهزة.`,
+        ],
+        notice:
+          'إذا لم تكن أنت من فعل ذلك، استعد كلمة المرور فورًا من «نسيت كلمة المرور» وتواصل مع إدارة النشاط الطلابي.',
+        button: { label: 'تسجيل الدخول', url: `${siteOrigin}/login` },
+      }),
+    );
+  }
+  /** رابط استعادة كلمة المرور (ساعة واحدة). يلغي أي رابط سابق لنفس الحساب. */
+  function sendPasswordReset(userId: number) {
+    if (!mailer) return;
+    const u = db.prepare('SELECT name,email FROM users WHERE id=?').get(userId) as
+      { name: string; email: string } | undefined;
+    if (!u) return;
+    const token = randomBytes(32).toString('hex');
+    db.prepare('DELETE FROM password_resets WHERE user_id=?').run(userId);
+    db.prepare('INSERT INTO password_resets VALUES (?,?,?,?)').run(
+      hash(token),
+      userId,
+      Date.now() + 3600 * 1000,
+      Date.now(),
+    );
+    enqueueEmail(
+      'reset',
+      u.email,
+      `استعادة كلمة المرور في ${platform}`,
+      renderEmail({
+        ...mailBrand,
+        heading: `أهلًا ${u.name.split(' ')[0]}`,
+        lines: [
+          `وصلنا طلب لاستعادة كلمة مرور حسابك في «${platform}». اضغط الزر التالي لاختيار كلمة مرور جديدة. الرابط صالح ساعة واحدة ويعمل مرة واحدة.`,
+        ],
+        button: {
+          label: 'اختيار كلمة مرور جديدة',
+          url: `${siteOrigin}/reset-password?token=${token}`,
+        },
+        footer: 'إذا لم تطلب ذلك فتجاهل هذه الرسالة؛ كلمة مرورك الحالية تبقى كما هي.',
       }),
     );
   }
@@ -595,6 +660,7 @@ export function createApp(
         user.id,
         tokenHash(req),
       );
+      securityAlert(user.id, 'change');
       res.json({ ok: true });
     },
   );
@@ -616,6 +682,68 @@ export function createApp(
     );
     res.json({ ok: true });
   });
+  // ===== استعادة كلمة المرور (تعمل فقط عند تفعيل البريد) =====
+  app.post(
+    '/api/forgot-password',
+    rateLimit({
+      windowMs: 60 * 60 * 1000,
+      limit: 10,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      assert(mailer, 404, 'استعادة كلمة المرور بالبريد غير مفعّلة. تواصل مع إدارة النشاط الطلابي.');
+      const { email } = z.object({ email: z.string().trim().max(180) }).parse(req.body);
+      const u = db
+        .prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE AND active=1')
+        .get(email) as { id: number } | undefined;
+      // رد واحد ثابت سواء وُجد الحساب أم لا حتى لا يُكشف من له حساب؛ ورابط واحد كل دقيقتين لكل حساب
+      if (u) {
+        const recent = db
+          .prepare('SELECT 1 AS x FROM password_resets WHERE user_id=? AND created_at>?')
+          .get(u.id, Date.now() - 2 * 60 * 1000);
+        if (!recent) sendPasswordReset(u.id);
+      }
+      res.json({ ok: true });
+    },
+  );
+  app.post(
+    '/api/reset-password',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 20,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const input = z
+        .object({ token: z.string().regex(/^[a-f0-9]{64}$/), password: z.string().max(128) })
+        .parse(req.body);
+      assert(
+        input.password.length >= 8 && input.password.length <= 100,
+        400,
+        'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.',
+      );
+      const row = db
+        .prepare('SELECT user_id,expires_at FROM password_resets WHERE token_hash=?')
+        .get(hash(input.token)) as { user_id: number; expires_at: number } | undefined;
+      assert(
+        row && row.expires_at > Date.now(),
+        400,
+        'رابط الاستعادة غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.',
+      );
+      const active = db.prepare('SELECT active FROM users WHERE id=?').get(row.user_id) as
+        { active: number } | undefined;
+      assert(active?.active === 1, 400, 'رابط الاستعادة غير صالح.');
+      transaction(() => {
+        db.prepare(
+          'UPDATE users SET password_hash=?,email_verified_at=COALESCE(email_verified_at,?) WHERE id=?',
+        ).run(hashPassword(input.password), now(), row.user_id);
+        db.prepare('DELETE FROM password_resets WHERE user_id=?').run(row.user_id);
+        db.prepare('DELETE FROM sessions WHERE user_id=?').run(row.user_id);
+      });
+      securityAlert(row.user_id, 'reset');
+      res.json({ ok: true });
+    },
+  );
   // ===== تأكيد البريد وإيقاف رسائل الإشعارات =====
   app.post(
     '/api/verify-email',

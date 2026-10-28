@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
-import { mailerFromEnv, renderEmail } from '../server/mailer';
+import path2 from 'node:path';
+import { mailerFromEnv, renderEmail, inlineAttachments } from '../server/mailer';
 
 test('mailer is off unless SMTP_HOST and MAIL_FROM are set; templates escape HTML', () => {
   assert.equal(mailerFromEnv({}), null);
@@ -267,7 +268,14 @@ test('email verification and notification emails', async (t) => {
 test('real SMTP delivery through nodemailer (local test server)', async (t) => {
   const { SMTPServer } = await import('smtp-server');
   const { simpleParser } = await import('mailparser');
-  const received: { from: string; to: string; subject: string; text: string; html: string }[] = [];
+  const received: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    cids: string[];
+  }[] = [];
   const smtp = new SMTPServer({
     authOptional: false,
     disabledCommands: ['STARTTLS'],
@@ -284,6 +292,7 @@ test('real SMTP delivery through nodemailer (local test server)', async (t) => {
         subject: mail.subject ?? '',
         text: mail.text ?? '',
         html: String(mail.html || ''),
+        cids: mail.attachments.map((a) => `${a.cid}|${a.contentType}|${a.size}`),
       });
       cb();
     },
@@ -302,6 +311,9 @@ test('real SMTP delivery through nodemailer (local test server)', async (t) => {
   const body = renderEmail({
     platform: 'أَثَر',
     heading: 'أهلًا',
+    tagline: 'بوابة النشاط الطلابي',
+    faculty: 'كلية التجارة',
+    university: 'جامعة قناة السويس',
     lines: ['مرحبًا بك'],
     button: { label: 'فتح', url: 'https://example.test/x' },
   });
@@ -310,7 +322,12 @@ test('real SMTP delivery through nodemailer (local test server)', async (t) => {
     to: 'student@example.test',
     subject: 'تأكيد بريدك',
     ...body,
+    attachments: inlineAttachments(body.html, path2.resolve(import.meta.dirname, '..')),
   });
+  // شعارا الكلية والجامعة مضمّنان كصورة CID داخل الرسالة نفسها
+  assert.equal(received[0].cids.length, 1);
+  assert.match(received[0].cids[0], /^athar-logos@scu\|image\/png\|\d{5,}$/);
+  assert.ok(received[0].html.includes('بوابة النشاط الطلابي'));
   assert.equal(received.length, 1);
   assert.equal(received[0].subject, 'تأكيد بريدك');
   assert.ok(received[0].text.includes('https://example.test/x'));

@@ -1552,3 +1552,22 @@ tbody tr:hover .avatar {
 .verify-fail {
   color: #b7791f;
 }
+.verify-form {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  justify-items: center;
+  text-align: right;
+}
+.verify-form h1,
+.verify-form > p {
+  text-align: center;
+}
+.verify-form label {
+  width: 100%;
+}
+.forgot-link {
+  justify-self: start;
+  font-size: 0.9rem;
+  color: var(--blue, #235ce3);
+}

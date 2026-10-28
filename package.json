@@ -14,6 +14,7 @@
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "test:browser": "tsx tests/browser.smoke.ts",
+    "test:reset": "tsx tests/reset.smoke.ts",
     "test:preview": "tsx tests/preview.smoke.ts",
     "test:gallery": "tsx tests/gallery.smoke.ts"
   },

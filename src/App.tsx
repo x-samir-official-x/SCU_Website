@@ -36,6 +36,7 @@ import type { Role, Session } from './types';
 import { StudentDashboard, ActivityPage, DocumentsPage } from './Student';
 import { ProfilePage } from './Profile';
 import { VerifyEmailPage } from './VerifyEmail';
+import { ForgotPasswordPage, ResetPasswordPage } from './ForgotPassword';
 import { Avatar } from './Avatar';
 import { NotificationBell } from './NotificationBell';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
@@ -168,6 +169,11 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
                 placeholder="أدخل كلمة المرور"
               />
             </label>
+            {session.emailEnabled && (
+              <Link className="forgot-link" to="/forgot-password">
+                نسيت كلمة المرور؟
+              </Link>
+            )}
             {error && (
               <div className="form-error" role="alert">
                 {error}
@@ -588,6 +594,8 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/welcome" element={<Landing />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/login"
             element={
