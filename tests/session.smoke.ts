@@ -1,3 +1,4 @@
+import { typeDemoCredentials } from './demo-login';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -22,7 +23,7 @@ try {
   const ctx = await browser.newContext({ locale: 'ar-EG', viewport: { width: 390, height: 800 } });
   const page = await ctx.newPage();
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'تعبئة بيانات الحساب التجريبي' }).click();
+  await typeDemoCredentials(page);
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
   await page.locator('main.main-content').waitFor();
   await page.goto(`${base}/activity`, { waitUntil: 'networkidle' });

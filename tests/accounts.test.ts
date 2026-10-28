@@ -90,6 +90,20 @@ for (const open of [false, true]) {
       .get(base.email) as Record<string, string | null>;
     assert.ok(row.terms_version && row.terms_accepted_at);
     assert.equal(row.student_id, null);
+    // لا يمكن إنشاء حساب موظف أو مسؤول من التسجيل العام حتى بإرسال role مباشرة
+    for (const role of ['admin', 'moderator']) {
+      const sneaky = await post({
+        ...base,
+        email: `${role}-try@example.test`,
+        student_id: `2026${role.length}999`,
+        role,
+      });
+      assert.equal(sneaky.status, 201);
+      const created = db
+        .prepare('SELECT role FROM users WHERE email=?')
+        .get(`${role}-try@example.test`) as { role: string };
+      assert.equal(created.role, 'student');
+    }
     // تكرار نفس البيانات مرفوض
     assert.equal(
       (await post({ ...base, email: 'other@example.test', national_id: '29901011234567' })).status,

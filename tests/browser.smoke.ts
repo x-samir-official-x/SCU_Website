@@ -1,3 +1,4 @@
+import { typeDemoCredentials } from './demo-login';
 import { chromium, type Page } from 'playwright-core';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -33,7 +34,7 @@ async function login(page: Page, role = 'طالب') {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: role, exact: true }).click();
-  await page.getByRole('button', { name: 'تعبئة بيانات الحساب التجريبي' }).click();
+  await typeDemoCredentials(page, role);
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
   await page.locator('.sidebar').waitFor();
   await page.waitForLoadState('networkidle');
