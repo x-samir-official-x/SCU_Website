@@ -9,6 +9,10 @@ export interface User {
   year: string | null;
   active: number;
   onboarding_dismissed?: number;
+  phone?: string | null;
+  avatar_v?: number;
+  email_verified?: number;
+  email_notifications?: number;
 }
 export interface Faculty {
   platformName: string;
@@ -29,6 +33,7 @@ export interface Session {
   demo: boolean;
   preview?: boolean;
   registration?: boolean;
+  emailEnabled?: boolean;
   faculty: Faculty;
 }
 export interface Attachment {
@@ -63,6 +68,8 @@ export interface ActivityRequest {
   version: number;
   physical_received: number;
   student_name?: string;
+  student_phone?: string | null;
+  student_avatar?: number;
   student_id?: string;
   year?: string;
   attachments?: Attachment[];
@@ -93,4 +100,13 @@ export interface GalleryPost {
 }
 export interface Staff extends User {
   created_at: string;
+}
+
+export interface AppNotification {
+  id: number;
+  title: string;
+  body: string;
+  link: string | null;
+  created_at: string;
+  read: boolean;
 }

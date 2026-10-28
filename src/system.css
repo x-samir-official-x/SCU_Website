@@ -1341,3 +1341,233 @@ tbody tr:hover .avatar {
     padding: 16px;
   }
 }
+
+/* ===== الصورة الشخصية والإشعارات ===== */
+.avatar {
+  overflow: hidden;
+  position: relative;
+}
+.avatar.has-photo {
+  background: none;
+  border-color: transparent;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.profile-photo {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.profile-photo .profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  font: 800 1.8rem var(--font-display, Cairo, sans-serif);
+  color: #fff;
+  background: linear-gradient(135deg, #102b50, #235ce3);
+  border: 0;
+}
+.profile-photo-actions {
+  display: flex;
+  gap: 10px;
+}
+.profile-photo-actions .link-button {
+  margin: 0;
+}
+.profile-sub {
+  margin: 18px 0 10px;
+  font-size: 0.95rem;
+}
+.notif-wrap {
+  position: relative;
+}
+.notif-wrap .notification {
+  position: relative;
+}
+.notif-count {
+  position: absolute;
+  top: -4px;
+  inset-inline-start: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: #c0392b;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  inset-inline-end: 0;
+  width: min(360px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--c-line, #dce5f2);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px #102b5026;
+  z-index: 60;
+}
+.notif-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--c-line, #dce5f2);
+}
+.notif-head button {
+  background: none;
+  border: 0;
+  color: #235ce3;
+  font: inherit;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.notif-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notif-panel li button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: start;
+  padding: 12px 14px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid #eef2f9;
+  font: inherit;
+  cursor: pointer;
+}
+.notif-panel li button:hover {
+  background: #f4f8ff;
+}
+.notif-panel li button.is-unread {
+  background: #eef4ff;
+}
+.notif-panel li button.is-unread strong::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  background: #235ce3;
+}
+.notif-panel li span {
+  color: var(--c-ink-2, #445774);
+  font-size: 0.86rem;
+}
+.notif-panel li small {
+  color: #7a8aa3;
+}
+.notif-empty {
+  margin: 0;
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--c-ink-2, #445774);
+}
+
+/* ===== تأكيد البريد ===== */
+.verify-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid #f0d9a4;
+  background: #fff8e6;
+  color: #6b4b0a;
+}
+.verify-banner > div {
+  flex: 1;
+  min-width: 220px;
+}
+.verify-banner p {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.mail-state {
+  margin-inline-start: 8px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  background: #fff1d6;
+  color: #8a5a00;
+}
+.mail-state.is-ok {
+  background: #e3f5e8;
+  color: #177a3c;
+}
+.profile-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.profile-toggle input {
+  margin-top: 5px;
+}
+.profile-toggle small {
+  display: block;
+}
+.verify-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.verify-card {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  padding: 32px 24px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.verify-card h1 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.verify-ok {
+  color: #177a3c;
+}
+.verify-fail {
+  color: #b7791f;
+}
+.verify-form {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  justify-items: center;
+  text-align: right;
+}
+.verify-form h1,
+.verify-form > p {
+  text-align: center;
+}
+.verify-form label {
+  width: 100%;
+}
+.forgot-link {
+  justify-self: start;
+  font-size: 0.9rem;
+  color: var(--blue, #235ce3);
+}

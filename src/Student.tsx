@@ -49,6 +49,7 @@ import { AcademicSeal } from './Brand';
 import { GalleryOptIn } from './GalleryOptIn';
 import { FormAssistant } from './FormAssistant';
 import { MissionCard } from './MissionCard';
+import { EmailVerifyBanner } from './EmailVerifyBanner';
 import type { Suggestion } from './assistant';
 
 export function ProgressRing({ approved, large = false }: { approved: boolean; large?: boolean }) {
@@ -103,6 +104,7 @@ export function StudentDashboard() {
           {date(new Date().toISOString())}
         </div>
       </div>
+      <EmailVerifyBanner />
       <MissionCard request={r} />
       <section className="hero institutional-hero">
         <div className="hero-content">

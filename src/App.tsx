@@ -35,6 +35,10 @@ import {
 import type { Role, Session } from './types';
 import { StudentDashboard, ActivityPage, DocumentsPage } from './Student';
 import { ProfilePage } from './Profile';
+import { VerifyEmailPage } from './VerifyEmail';
+import { ForgotPasswordPage, ResetPasswordPage } from './ForgotPassword';
+import { Avatar } from './Avatar';
+import { NotificationBell } from './NotificationBell';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
 
 import { BrandMark as Mark, AcademicSeal, LoginProcess } from './Brand';
@@ -165,6 +169,11 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
                 placeholder="أدخل كلمة المرور"
               />
             </label>
+            {session.emailEnabled && (
+              <Link className="forgot-link" to="/forgot-password">
+                نسيت كلمة المرور؟
+              </Link>
+            )}
             {error && (
               <div className="form-error" role="alert">
                 {error}
@@ -323,7 +332,7 @@ function Shell() {
             </p>
           </div>
           <div className="sidebar-user">
-            <span className="avatar">{user.name[0]}</span>
+            <Avatar userId={user.id} version={user.avatar_v} name={user.name} />
             <div>
               <strong>{user.name}</strong>
               <small>
@@ -360,13 +369,7 @@ function Shell() {
             <strong>{title}</strong>
           </div>
           <div className="topbar-actions">
-            <Link
-              className="icon-button notification"
-              to={isStudent ? '/activity' : '/requests?status=pending'}
-              aria-label="متابعة الطلبات"
-            >
-              <Bell size={19} />
-            </Link>
+            <NotificationBell />
             <span className="topbar-divider" />
             <div className="account-wrap" ref={accountRef}>
               <button
@@ -374,7 +377,12 @@ function Shell() {
                 onClick={() => setAccountOpen(!accountOpen)}
                 aria-expanded={accountOpen}
               >
-                <span className="avatar small">{user.name[0]}</span>
+                <Avatar
+                  userId={user.id}
+                  version={user.avatar_v}
+                  name={user.name}
+                  className="small"
+                />
                 <span>{user.name.split(' ')[0]}</span>
                 <ChevronLeft size={14} />
               </button>
@@ -585,6 +593,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/welcome" element={<Landing />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/login"
             element={

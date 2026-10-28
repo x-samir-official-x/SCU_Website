@@ -11,8 +11,9 @@ import { openDatabase, faculty, hashPassword, now } from './db';
 import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
+import { mailerFromEnv, renderEmail, inlineAttachments, type Mailer } from './mailer';
 import { checkCertificate } from '../src/certificate';
-import { validateRegistration, YEARS } from '../src/registration';
+import { validateRegistration, validatePhone, YEARS } from '../src/registration';
 import { normalizeDigits } from '../src/terms';
 import type { ActivityRequest, Role, User } from '../src/types';
 
@@ -61,7 +62,12 @@ const submittedSchema = draftSchema.extend({
 });
 
 export function createApp(
-  options: { dataDir?: string; demo?: boolean; registrationOpen?: boolean } = {},
+  options: {
+    dataDir?: string;
+    demo?: boolean;
+    registrationOpen?: boolean;
+    mailer?: Mailer | null;
+  } = {},
 ) {
   const demo = options.demo ?? process.env.DEMO_MODE === 'true';
   const dataDir = path.resolve(options.dataDir ?? process.env.DATA_DIR ?? path.join(root, '.data'));
@@ -72,6 +78,12 @@ export function createApp(
   mkdirSync(formDir, { recursive: true, mode: 0o700 });
   // التسجيل العام مقفول افتراضيًا حتى يُعتمد التحقق الجامعي. للتفعيل: REGISTRATION_OPEN=true
   const registrationOpen = options.registrationOpen ?? process.env.REGISTRATION_OPEN === 'true';
+  const mailer = options.mailer === undefined ? mailerFromEnv() : options.mailer;
+  const siteOrigin = (
+    process.env.APP_ORIGIN || `http://localhost:${process.env.PORT || 3001}`
+  ).replace(/\/+$/, '');
+  if (mailer && !process.env.APP_ORIGIN && process.env.NODE_ENV === 'production')
+    console.warn('APP_ORIGIN غير مضبوط: روابط الرسائل ستشير إلى localhost.');
   const app = express();
   app.disable('x-powered-by');
   const pendingForms = new Map<string, Promise<void>>();
@@ -106,7 +118,7 @@ export function createApp(
     if (cookie && /^[a-f0-9]{64}$/.test(cookie)) {
       const session = db
         .prepare(
-          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
+          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed,u.phone,u.avatar_v,(u.email_verified_at IS NOT NULL) AS email_verified,u.email_notifications FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
         )
         .get(hash(cookie), Date.now());
       if (session) {
@@ -150,6 +162,215 @@ export function createApp(
     db
       .prepare('INSERT INTO events (request_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?)')
       .run(requestId, actor, action, note, now());
+  /** إشعار داخل الموقع. يُحتفظ بآخر ١٠٠ إشعار لكل مستخدم. */
+  const notify = (userId: number, title: string, body = '', link: string | null = null) => {
+    db.prepare(
+      'INSERT INTO notifications (user_id,title,body,link,created_at) VALUES (?,?,?,?,?)',
+    ).run(userId, title, body.slice(0, 300), link, now());
+    db.prepare(
+      'DELETE FROM notifications WHERE user_id=? AND id NOT IN (SELECT id FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 100)',
+    ).run(userId, userId);
+    emailNotification(userId);
+  };
+  const notifyStaff = (title: string, body: string, link: string) => {
+    const staff = db
+      .prepare("SELECT id FROM users WHERE role IN ('moderator','admin') AND active=1")
+      .all() as { id: number }[];
+    for (const u of staff) notify(u.id, title, body, link);
+  };
+  // ===== البريد الإلكتروني (اختياري؛ معطّل حتى تُضبط إعدادات SMTP) =====
+  const platform = faculty.platformName || faculty.brand;
+  const mailBrand = {
+    platform,
+    tagline: faculty.platformName ? faculty.brand : undefined,
+    faculty: faculty.faculty,
+    university: faculty.university,
+  };
+  const enqueueEmail = (
+    kind: string,
+    to: string,
+    subject: string,
+    body: { text: string; html: string },
+  ) => {
+    if (!mailer) return;
+    db.prepare(
+      'INSERT INTO email_outbox (kind,to_addr,subject,text,html,created_at) VALUES (?,?,?,?,?,?)',
+    ).run(kind, to, subject, body.text, body.html, Date.now());
+    setImmediate(() => void flushMail());
+  };
+  let flushing = false;
+  /** يرسل الرسائل المعلقة بالترتيب، وتُعاد المحاولة عند الفشل (حتى ٥ مرات بفواصل متزايدة). */
+  async function flushMail() {
+    if (!mailer || flushing) return;
+    flushing = true;
+    try {
+      const rows = db
+        .prepare(
+          'SELECT id,to_addr,subject,text,html,attempts FROM email_outbox WHERE sent_at IS NULL AND attempts<5 AND next_at<=? ORDER BY id LIMIT 20',
+        )
+        .all(Date.now()) as {
+        id: number;
+        to_addr: string;
+        subject: string;
+        text: string;
+        html: string;
+        attempts: number;
+      }[];
+      for (const m of rows) {
+        try {
+          await mailer.transport.sendMail({
+            from: mailer.from,
+            to: m.to_addr,
+            subject: m.subject,
+            text: m.text,
+            html: m.html,
+            attachments: inlineAttachments(m.html, root),
+          });
+          db.prepare('UPDATE email_outbox SET sent_at=?,last_error=NULL WHERE id=?').run(
+            Date.now(),
+            m.id,
+          );
+        } catch (error) {
+          const delay = [60, 300, 900, 3600, 3600][m.attempts] * 1000;
+          db.prepare(
+            'UPDATE email_outbox SET attempts=attempts+1,next_at=?,last_error=? WHERE id=?',
+          ).run(Date.now() + delay, String((error as Error).message).slice(0, 300), m.id);
+          console.error('تعذر إرسال بريد', m.id, (error as Error).message);
+        }
+      }
+      db.prepare('DELETE FROM password_resets WHERE expires_at<?').run(Date.now());
+      // لا نحتفظ بنصوص الرسائل المرسلة أكثر من أسبوع
+      db.prepare('DELETE FROM email_outbox WHERE sent_at IS NOT NULL AND sent_at<?').run(
+        Date.now() - 7 * 24 * 3600 * 1000,
+      );
+    } catch (error) {
+      console.error('Mail flush failed', (error as Error).message);
+    } finally {
+      flushing = false;
+    }
+  }
+  if (mailer) setInterval(() => void flushMail(), 30_000).unref();
+  /** رابط تأكيد البريد (صالح ٢٤ ساعة). يلغي أي رابط سابق لنفس الحساب. */
+  function sendVerification(userId: number) {
+    if (!mailer) return;
+    const u = db.prepare('SELECT name,email FROM users WHERE id=?').get(userId) as
+      { name: string; email: string } | undefined;
+    if (!u) return;
+    const token = randomBytes(32).toString('hex');
+    db.prepare('DELETE FROM email_tokens WHERE user_id=?').run(userId);
+    db.prepare('INSERT INTO email_tokens VALUES (?,?,?,?,?)').run(
+      hash(token),
+      userId,
+      u.email,
+      Date.now() + 24 * 3600 * 1000,
+      Date.now(),
+    );
+    enqueueEmail(
+      'verify',
+      u.email,
+      `أكّد بريدك الإلكتروني في ${platform}`,
+      renderEmail({
+        ...mailBrand,
+        heading: `أهلًا ${u.name.split(' ')[0]}`,
+        lines: [`اضغط الزر التالي لتأكيد بريدك الإلكتروني في «${platform}». الرابط صالح ٢٤ ساعة.`],
+        button: { label: 'تأكيد البريد', url: `${siteOrigin}/verify-email?token=${token}` },
+        footer: 'إذا لم تطلب هذه الرسالة فتجاهلها ولن يحدث أي شيء.',
+      }),
+    );
+  }
+  /** بريد إشعار عام (بدون تفاصيل الطلب) لمن أكّد بريده ولم يوقف الرسائل. بريد واحد كل ٥ دقائق للحساب. */
+  function emailNotification(userId: number) {
+    if (!mailer) return;
+    const u = db
+      .prepare('SELECT email,email_verified_at,email_notifications,active FROM users WHERE id=?')
+      .get(userId) as
+      | {
+          email: string;
+          email_verified_at: string | null;
+          email_notifications: number;
+          active: number;
+        }
+      | undefined;
+    if (!u || !u.active || !u.email_verified_at || !u.email_notifications) return;
+    const recent = db
+      .prepare(
+        "SELECT 1 AS x FROM email_outbox WHERE kind='notification' AND to_addr=? AND created_at>?",
+      )
+      .get(u.email, Date.now() - 5 * 60 * 1000);
+    if (recent) return;
+    enqueueEmail(
+      'notification',
+      u.email,
+      `إشعار جديد في ${platform}`,
+      renderEmail({
+        ...mailBrand,
+        heading: 'عندك إشعار جديد',
+        lines: [
+          `يوجد إشعار جديد في حسابك على «${platform}». افتح الموقع للاطلاع عليه.`,
+          'لا نرسل تفاصيل الطلب أو ملاحظات المراجعة بالبريد حفاظًا على خصوصيتك.',
+        ],
+        button: { label: 'فتح الموقع', url: `${siteOrigin}/dashboard` },
+        footer: 'يمكنك إيقاف رسائل البريد من «ملفي الشخصي».',
+      }),
+    );
+  }
+  /** تنبيه أمني بعد تغيير كلمة المرور (من الملف الشخصي أو بالاستعادة). */
+  function securityAlert(userId: number, how: 'reset' | 'change') {
+    if (!mailer) return;
+    const u = db
+      .prepare('SELECT name,email,email_verified_at FROM users WHERE id=?')
+      .get(userId) as { name: string; email: string; email_verified_at: string | null } | undefined;
+    if (!u || (how === 'change' && !u.email_verified_at)) return;
+    enqueueEmail(
+      'security',
+      u.email,
+      `تم تغيير كلمة مرور حسابك في ${platform}`,
+      renderEmail({
+        ...mailBrand,
+        heading: `أهلًا ${u.name.split(' ')[0]}`,
+        lines: [
+          how === 'reset'
+            ? `تمت استعادة كلمة مرور حسابك في «${platform}» وتسجيل خروجك من كل الأجهزة.`
+            : `تم تغيير كلمة مرور حسابك في «${platform}» وتسجيل خروجك من باقي الأجهزة.`,
+        ],
+        notice:
+          'إذا لم تكن أنت من فعل ذلك، استعد كلمة المرور فورًا من «نسيت كلمة المرور» وتواصل مع إدارة النشاط الطلابي.',
+        button: { label: 'تسجيل الدخول', url: `${siteOrigin}/login` },
+      }),
+    );
+  }
+  /** رابط استعادة كلمة المرور (ساعة واحدة). يلغي أي رابط سابق لنفس الحساب. */
+  function sendPasswordReset(userId: number) {
+    if (!mailer) return;
+    const u = db.prepare('SELECT name,email FROM users WHERE id=?').get(userId) as
+      { name: string; email: string } | undefined;
+    if (!u) return;
+    const token = randomBytes(32).toString('hex');
+    db.prepare('DELETE FROM password_resets WHERE user_id=?').run(userId);
+    db.prepare('INSERT INTO password_resets VALUES (?,?,?,?)').run(
+      hash(token),
+      userId,
+      Date.now() + 3600 * 1000,
+      Date.now(),
+    );
+    enqueueEmail(
+      'reset',
+      u.email,
+      `استعادة كلمة المرور في ${platform}`,
+      renderEmail({
+        ...mailBrand,
+        heading: `أهلًا ${u.name.split(' ')[0]}`,
+        lines: [
+          `وصلنا طلب لاستعادة كلمة مرور حسابك في «${platform}». اضغط الزر التالي لاختيار كلمة مرور جديدة. الرابط صالح ساعة واحدة ويعمل مرة واحدة.`,
+        ],
+        button: {
+          label: 'اختيار كلمة مرور جديدة',
+          url: `${siteOrigin}/reset-password?token=${token}`,
+        },
+        footer: 'إذا لم تطلب ذلك فتجاهل هذه الرسالة؛ كلمة مرورك الحالية تبقى كما هي.',
+      }),
+    );
+  }
   const transaction = <T>(fn: () => T): T => {
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -164,7 +385,7 @@ export function createApp(
   function getRequest(id: number, user: User) {
     const r = db
       .prepare(
-        `SELECT r.*, u.name AS student_name, ${idDisplay('u.')} AS student_id, u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE r.id=?`,
+        `SELECT r.*, u.name AS student_name, u.phone AS student_phone, u.avatar_v AS student_avatar, ${idDisplay('u.')} AS student_id, u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE r.id=?`,
       )
       .get(id) as unknown as ActivityRequest | undefined;
     assert(r && (user.role !== 'student' || r.user_id === user.id), 404, 'الطلب غير موجود.');
@@ -231,6 +452,7 @@ export function createApp(
       demo,
       faculty,
       registration: registrationOpen,
+      emailEnabled: Boolean(mailer),
     }),
   );
   app.get('/api/demo-accounts', (_req, res) => {
@@ -306,7 +528,7 @@ export function createApp(
       assert(!taken, 409, 'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.');
       const result = db
         .prepare(
-          "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at) VALUES (?,?,?,'student',?,?,?,?,?,?)",
+          "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at,phone) VALUES (?,?,?,'student',?,?,?,?,?,?,?)",
         )
         .run(
           v.name,
@@ -318,7 +540,9 @@ export function createApp(
           now(),
           v.terms_version,
           now(),
+          v.phone,
         );
+      sendVerification(Number(result.lastInsertRowid));
       startSession(res, Number(result.lastInsertRowid));
       res.status(201).json({ ok: true });
     },
@@ -339,11 +563,12 @@ export function createApp(
     studentOnly(user);
     const row = db
       .prepare(
-        'SELECT name,email,year,student_id,national_id,created_at,terms_version,terms_accepted_at FROM users WHERE id=?',
+        'SELECT name,email,phone,year,student_id,national_id,created_at,terms_version,terms_accepted_at FROM users WHERE id=?',
       )
       .get(user.id) as {
       name: string;
       email: string;
+      phone: string | null;
       year: string | null;
       student_id: string | null;
       national_id: string | null;
@@ -360,6 +585,7 @@ export function createApp(
       profile: {
         name: row.name,
         email: row.email,
+        phone: row.phone,
         year: row.year,
         idShown: user.student_id,
         hasUniversityId: Boolean(row.student_id),
@@ -434,6 +660,7 @@ export function createApp(
         user.id,
         tokenHash(req),
       );
+      securityAlert(user.id, 'change');
       res.json({ ok: true });
     },
   );
@@ -451,6 +678,134 @@ export function createApp(
     const input = z.object({ dismissed: z.boolean() }).parse(req.body);
     db.prepare('UPDATE users SET onboarding_dismissed=? WHERE id=?').run(
       input.dismissed ? 1 : 0,
+      user.id,
+    );
+    res.json({ ok: true });
+  });
+  // ===== استعادة كلمة المرور (تعمل فقط عند تفعيل البريد) =====
+  app.post(
+    '/api/forgot-password',
+    rateLimit({
+      windowMs: 60 * 60 * 1000,
+      limit: 10,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      assert(mailer, 404, 'استعادة كلمة المرور بالبريد غير مفعّلة. تواصل مع إدارة النشاط الطلابي.');
+      const { email } = z.object({ email: z.string().trim().max(180) }).parse(req.body);
+      const u = db
+        .prepare('SELECT id FROM users WHERE email=? COLLATE NOCASE AND active=1')
+        .get(email) as { id: number } | undefined;
+      // رد واحد ثابت سواء وُجد الحساب أم لا حتى لا يُكشف من له حساب؛ ورابط واحد كل دقيقتين لكل حساب
+      if (u) {
+        const recent = db
+          .prepare('SELECT 1 AS x FROM password_resets WHERE user_id=? AND created_at>?')
+          .get(u.id, Date.now() - 2 * 60 * 1000);
+        if (!recent) sendPasswordReset(u.id);
+      }
+      res.json({ ok: true });
+    },
+  );
+  app.post(
+    '/api/reset-password',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 20,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const input = z
+        .object({ token: z.string().regex(/^[a-f0-9]{64}$/), password: z.string().max(128) })
+        .parse(req.body);
+      assert(
+        input.password.length >= 8 && input.password.length <= 100,
+        400,
+        'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.',
+      );
+      const row = db
+        .prepare('SELECT user_id,expires_at FROM password_resets WHERE token_hash=?')
+        .get(hash(input.token)) as { user_id: number; expires_at: number } | undefined;
+      assert(
+        row && row.expires_at > Date.now(),
+        400,
+        'رابط الاستعادة غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.',
+      );
+      const active = db.prepare('SELECT active FROM users WHERE id=?').get(row.user_id) as
+        { active: number } | undefined;
+      assert(active?.active === 1, 400, 'رابط الاستعادة غير صالح.');
+      transaction(() => {
+        db.prepare(
+          'UPDATE users SET password_hash=?,email_verified_at=COALESCE(email_verified_at,?) WHERE id=?',
+        ).run(hashPassword(input.password), now(), row.user_id);
+        db.prepare('DELETE FROM password_resets WHERE user_id=?').run(row.user_id);
+        db.prepare('DELETE FROM sessions WHERE user_id=?').run(row.user_id);
+      });
+      securityAlert(row.user_id, 'reset');
+      res.json({ ok: true });
+    },
+  );
+  // ===== تأكيد البريد وإيقاف رسائل الإشعارات =====
+  app.post(
+    '/api/verify-email',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 30,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const { token } = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.body);
+      const row = db
+        .prepare('SELECT user_id,email,expires_at FROM email_tokens WHERE token_hash=?')
+        .get(hash(token)) as { user_id: number; email: string; expires_at: number } | undefined;
+      assert(
+        row && row.expires_at > Date.now(),
+        400,
+        'رابط التأكيد غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا من حسابك.',
+      );
+      const user = db.prepare('SELECT email FROM users WHERE id=?').get(row.user_id) as
+        { email: string } | undefined;
+      assert(
+        user && user.email.toLowerCase() === row.email.toLowerCase(),
+        400,
+        'رابط التأكيد لا يخص بريدك الحالي. اطلب رابطًا جديدًا.',
+      );
+      db.prepare('UPDATE users SET email_verified_at=? WHERE id=?').run(now(), row.user_id);
+      db.prepare('DELETE FROM email_tokens WHERE user_id=?').run(row.user_id);
+      res.json({ ok: true });
+    },
+  );
+  app.post(
+    '/api/profile/resend-verification',
+    auth,
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 5,
+      message: { error: 'تم إرسال عدة روابط. انتظر قليلًا ثم حاول مرة أخرى.' },
+    }),
+    (_req, res) => {
+      const user: User = res.locals.user;
+      assert(mailer, 404, 'إرسال البريد غير مفعّل على هذا الخادم.');
+      const row = db.prepare('SELECT email_verified_at FROM users WHERE id=?').get(user.id) as {
+        email_verified_at: string | null;
+      };
+      assert(!row.email_verified_at, 409, 'بريدك مؤكد بالفعل.');
+      const last = db
+        .prepare('SELECT created_at FROM email_tokens WHERE user_id=?')
+        .get(user.id) as { created_at: number } | undefined;
+      assert(
+        !last || Date.now() - last.created_at > 60_000,
+        429,
+        'أُرسل رابط للتو. انتظر دقيقة ثم أعد المحاولة.',
+      );
+      sendVerification(user.id);
+      res.json({ ok: true });
+    },
+  );
+  app.put('/api/profile/email-notifications', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const input = z.object({ enabled: z.boolean() }).parse(req.body);
+    db.prepare('UPDATE users SET email_notifications=? WHERE id=?').run(
+      input.enabled ? 1 : 0,
       user.id,
     );
     res.json({ ok: true });
@@ -559,6 +914,11 @@ export function createApp(
         'submitted',
         version > 1 ? 'إعادة تقديم الطلب بعد التعديل' : 'تم تقديم النشاط للمراجعة',
       );
+      notifyStaff(
+        version > 1 ? 'طلب أُعيد إرساله للمراجعة' : 'طلب جديد للمراجعة',
+        `${user.name} — ${r.title}`,
+        `/requests/${r.id}`,
+      );
     });
     res.json({ request: detail(getRequest(r.id, user)) });
   });
@@ -645,6 +1005,153 @@ export function createApp(
       res.status(201).json({ request: detail(r) });
     },
   );
+  // ===== الإشعارات داخل الموقع =====
+  app.get('/api/notifications', auth, (_req, res) => {
+    const user: User = res.locals.user;
+    const rows = db
+      .prepare(
+        'SELECT id,title,body,link,created_at,read_at FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 30',
+      )
+      .all(user.id) as { read_at: string | null }[];
+    const unread = db
+      .prepare('SELECT count(*) AS n FROM notifications WHERE user_id=? AND read_at IS NULL')
+      .get(user.id) as { n: number };
+    res.json({
+      notifications: rows.map(({ read_at, ...n }) => ({ ...n, read: Boolean(read_at) })),
+      unread: unread.n,
+    });
+  });
+  app.post('/api/notifications/read', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const input = z.object({ id: z.number().int().positive().optional() }).parse(req.body ?? {});
+    if (input.id)
+      db.prepare(
+        'UPDATE notifications SET read_at=? WHERE id=? AND user_id=? AND read_at IS NULL',
+      ).run(now(), input.id, user.id);
+    else
+      db.prepare('UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL').run(
+        now(),
+        user.id,
+      );
+    res.json({ ok: true });
+  });
+
+  // ===== الصورة الشخصية (اختيارية) وبيانات التواصل =====
+  const avatarUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  });
+  const dropAvatarFile = (name: string | null | undefined) => {
+    if (name && existsSync(path.join(uploadDir, name))) unlinkSync(path.join(uploadDir, name));
+  };
+  app.post(
+    '/api/profile/avatar',
+    auth,
+    (req, res, next) => {
+      avatarUpload.single('file')(req, res, (err) =>
+        next(err ? new HttpError(400, 'الصورة أكبر من ٢ ميجابايت أو غير صالحة.') : undefined),
+      );
+    },
+    (req, res) => {
+      const user: User = res.locals.user;
+      studentOnly(user);
+      const file = req.file;
+      assert(file, 400, 'اختر صورة.');
+      const b = file.buffer;
+      const detected = b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        ? 'image/png'
+        : b[0] === 255 && b[1] === 216 && b[2] === 255
+          ? 'image/jpeg'
+          : null;
+      assert(detected && detected === file.mimetype, 400, 'اختر صورة PNG أو JPG صحيحة.');
+      let clean: Buffer;
+      try {
+        clean = sanitizeGalleryImage(b, detected);
+      } catch {
+        throw new HttpError(400, 'تعذر قراءة الصورة. اختر صورة سليمة.');
+      }
+      const old = db.prepare('SELECT avatar_stored FROM users WHERE id=?').get(user.id) as {
+        avatar_stored: string | null;
+      };
+      const stored = `av-${randomBytes(20).toString('hex')}`;
+      writeFileSync(path.join(uploadDir, stored), clean, { mode: 0o600 });
+      db.prepare('UPDATE users SET avatar_stored=?,avatar_v=? WHERE id=?').run(
+        stored,
+        Date.now(),
+        user.id,
+      );
+      dropAvatarFile(old.avatar_stored);
+      res.status(201).json({ ok: true });
+    },
+  );
+  app.delete('/api/profile/avatar', auth, (_req, res) => {
+    const user: User = res.locals.user;
+    const old = db.prepare('SELECT avatar_stored FROM users WHERE id=?').get(user.id) as {
+      avatar_stored: string | null;
+    };
+    db.prepare('UPDATE users SET avatar_stored=NULL,avatar_v=0 WHERE id=?').run(user.id);
+    dropAvatarFile(old.avatar_stored);
+    res.json({ ok: true });
+  });
+  // الصورة تُعرض لصاحبها وللموظفين فقط (وليست علنية).
+  app.get('/api/avatar/:id', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const id = parseId(String(req.params.id));
+    assert(user.id === id || ['moderator', 'admin'].includes(user.role), 403, 'غير مسموح.');
+    const row = db.prepare('SELECT avatar_stored FROM users WHERE id=?').get(id) as
+      { avatar_stored: string | null } | undefined;
+    assert(row?.avatar_stored, 404, 'لا توجد صورة.');
+    const file = path.join(uploadDir, row.avatar_stored);
+    assert(existsSync(file), 404, 'لا توجد صورة.');
+    res.setHeader('Content-Type', readFileSync(file)[0] === 0xff ? 'image/jpeg' : 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(file);
+  });
+  app.put('/api/profile/phone', auth, (req, res) => {
+    const user: User = res.locals.user;
+    studentOnly(user);
+    const parsed = validatePhone(z.object({ phone: z.unknown() }).parse(req.body).phone);
+    assert(parsed.ok, 400, parsed.ok ? '' : parsed.error);
+    db.prepare('UPDATE users SET phone=? WHERE id=?').run(parsed.value, user.id);
+    res.json({ ok: true });
+  });
+  app.put(
+    '/api/profile/email',
+    auth,
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 10,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const user: User = res.locals.user;
+      studentOnly(user);
+      const input = z
+        .object({ email: z.string().max(160), password: z.string().max(128) })
+        .parse(req.body);
+      const email = input.email.trim().toLowerCase();
+      assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 400, 'راجع البريد الإلكتروني.');
+      const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(user.id) as {
+        password_hash: string;
+      };
+      const [salt, expected] = row.password_hash.split(':');
+      assert(
+        timingSafeEqual(scryptSync(input.password, salt, 64), Buffer.from(expected, 'hex')),
+        403,
+        'كلمة المرور غير صحيحة.',
+      );
+      assert(
+        !db
+          .prepare('SELECT 1 AS x FROM users WHERE email=? COLLATE NOCASE AND id!=?')
+          .get(email, user.id),
+        409,
+        'هذا البريد مستخدم في حساب آخر.',
+      );
+      db.prepare('UPDATE users SET email=?,email_verified_at=NULL WHERE id=?').run(email, user.id);
+      sendVerification(user.id);
+      res.json({ ok: true });
+    },
+  );
   app.delete('/api/attachments/:id', auth, (req, res) => {
     const file = db
       .prepare('SELECT * FROM attachments WHERE id=?')
@@ -693,6 +1200,13 @@ export function createApp(
       input.data.hidden ? 'gallery_hidden' : 'gallery_shown',
       input.data.hidden ? 'إخفاء النشاط من المعرض العام' : 'إظهار النشاط في المعرض العام',
     );
+    if (input.data.hidden)
+      notify(
+        r.user_id,
+        'أُخفي نشاطك من المعرض العام',
+        'راجع مكتب النشاط الطلابي لو عندك استفسار. لا يؤثر هذا على اعتماد نشاطك.',
+        '/activity',
+      );
     res.json({ request: detail(getRequest(r.id, res.locals.user)) });
   });
   // المعرض العام: بدون تسجيل دخول، وبدون اسم الطالب أو رقمه أو أي معرّف شخصي.
@@ -935,6 +1449,15 @@ export function createApp(
         input.action === 'revoke' ? 'revoked' : input.action === 'reopen' ? 'reopened' : target,
         input.note,
       );
+      const text = {
+        approve: ['تم اعتماد نشاطك', `أُضيفت ${faculty.points} درجة إلى سجلك.`],
+        revision: ['مطلوب استكمال طلبك', input.note],
+        reject: ['لم يُعتمد طلبك', input.note],
+        cancel: ['تم إلغاء طلبك', input.note],
+        reopen: ['أُعيد فتح طلبك للتعديل', input.note],
+        revoke: ['تم سحب اعتماد نشاطك', input.note],
+      }[input.action as 'approve'];
+      notify(r.user_id, text[0], text[1], '/activity');
     });
     res.json({ request: detail(getRequest(r.id, user)) });
   });
@@ -962,8 +1485,17 @@ export function createApp(
       'البريد الإلكتروني مسجل بالفعل.',
     );
     const result = db
-      .prepare('INSERT INTO users (name,email,password_hash,role,created_at) VALUES (?,?,?,?,?)')
-      .run(data.name, data.email.toLowerCase(), hashPassword(data.password), data.role, now());
+      .prepare(
+        'INSERT INTO users (name,email,password_hash,role,created_at,email_verified_at) VALUES (?,?,?,?,?,?)',
+      )
+      .run(
+        data.name,
+        data.email.toLowerCase(),
+        hashPassword(data.password),
+        data.role,
+        now(),
+        now(),
+      );
     log(res.locals.user.id, null, 'staff_created', `تم إنشاء الحساب رقم ${result.lastInsertRowid}`);
     res.status(201).json({ ok: true });
   });
@@ -1017,7 +1549,7 @@ export function createApp(
     console.error('Request failed:', error instanceof Error ? error.message : 'unknown error');
     res.status(500).json({ error: 'تعذر إتمام العملية. يرجى المحاولة لاحقًا.' });
   });
-  return { app, db };
+  return { app, db, flushMail };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
