@@ -295,8 +295,10 @@ function Shell() {
         <div className="faculty-chip">
           <GraduationCap size={20} />
           <div>
-            <strong>{session.faculty.faculty}</strong>
-            <small>{session.faculty.period}</small>
+            <strong lang="ar">{session.faculty.platformName || session.faculty.faculty}</strong>
+            <small>
+              {session.faculty.brand} · {session.faculty.period}
+            </small>
           </div>
         </div>
         <span className="nav-label">مساحتك</span>

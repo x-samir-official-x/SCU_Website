@@ -292,7 +292,7 @@ export function RequestList() {
               aria-label="البحث عن طالب أو نشاط"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ابحث بالاسم، الرقم الجامعي، الرقم القومي أو النشاط…"
+              placeholder="ابحث بالاسم أو الرقم أو النشاط…"
             />
             {query && (
               <button className="icon-button" onClick={() => setQuery('')} aria-label="مسح البحث">
@@ -506,7 +506,9 @@ export function ReviewPage() {
               </div>
               <div>
                 <small>حالة الاستحقاق</small>
-                <strong>{r.status === 'approved' ? '٤٠ / ٤٠ درجة' : '٠ / ٤٠ درجة'}</strong>
+                <strong>
+                  <bdi dir="ltr">{r.status === 'approved' ? '٤٠ / ٤٠' : '٠ / ٤٠'}</bdi> درجة
+                </strong>
               </div>
             </div>
             <div className="description-block">

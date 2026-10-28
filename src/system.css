@@ -1571,3 +1571,54 @@ tbody tr:hover .avatar {
   font-size: 0.9rem;
   color: var(--blue, #235ce3);
 }
+
+/* ===== أهداف لمس مريحة على الموبايل (٤٤ بكسل تقريبًا) ===== */
+@media (max-width: 760px) {
+  .text-button,
+  .link-button,
+  .mission-dismiss,
+  .hero-guide,
+  .lp-login-back {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .lp-login-register a,
+  .lp-register-login a,
+  .staff-welcome a:not(.button) {
+    display: inline-block;
+    padding: 12px 6px;
+    margin: -12px -6px;
+  }
+  .breadcrumb .icon-button.mobile-only,
+  .sidebar-brand > .icon-button.mobile-only {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .demo-login .text-button {
+    min-height: 40px;
+  }
+}
+
+/* بحث وتصفية الطلبات: الأيقونة بجوار الحقل لا فوقه */
+.search-field,
+.filter-select {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+}
+.search-field > svg,
+.filter-select > svg {
+  flex: 0 0 auto;
+}
+.search-field > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+.filter-select > select {
+  flex: 1 1 auto;
+  width: auto;
+  background-color: transparent;
+}
