@@ -105,7 +105,7 @@ export function openDatabase(dataDir: string, demo: boolean) {
     db.prepare(
       'INSERT INTO users (name,email,password_hash,role,created_at,email_verified_at) VALUES (?,?,?,?,?,?)',
     ).run(
-      'المسؤول الرئيسي',
+      (process.env.ADMIN_NAME ?? '').trim().slice(0, 100) || 'المسؤول الرئيسي',
       process.env.ADMIN_EMAIL.trim().toLowerCase(),
       hashPassword(process.env.ADMIN_PASSWORD),
       'admin',
