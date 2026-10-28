@@ -801,3 +801,54 @@ tbody tr:hover .avatar {
     animation: m-rise 0.8s var(--ease-out) 0.1s backwards;
   }
 }
+
+/* ===== المعرض العام: خيار النشر عند الطالب وبطاقة الموظف ===== */
+.gallery-optin {
+  display: grid;
+  gap: 14px;
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line, rgba(16, 43, 80, 0.12));
+}
+.gallery-consent {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(35, 92, 227, 0.06);
+  border: 1px solid rgba(35, 92, 227, 0.16);
+}
+.gallery-picker {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.gallery-thumb {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.gallery-thumb img,
+.gallery-staff-image {
+  width: min(100%, 360px);
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 43, 80, 0.14);
+}
+.gallery-thumb-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gallery-note {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.gallery-staff-card {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}

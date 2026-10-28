@@ -100,7 +100,7 @@ try {
   });
   await page.getByRole('link', { name: 'preview.png', exact: true }).waitFor();
   await page.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
-  await page.getByRole('checkbox').check();
+  await page.locator('.modal').getByRole('checkbox').check();
   await page.getByRole('button', { name: 'تأكيد التقديم', exact: true }).click();
   await page.getByRole('heading', { name: 'تم استلام طلبك بنجاح', exact: true }).waitFor();
   const mine = await page.evaluate(

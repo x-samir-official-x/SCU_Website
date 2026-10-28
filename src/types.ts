@@ -20,6 +20,7 @@ export interface Faculty {
   office: string;
   points: number;
   activityTypes: string[];
+  gallery?: { requireApproval: boolean };
 }
 export interface Session {
   user: User | null;
@@ -64,6 +65,26 @@ export interface ActivityRequest {
   year?: string;
   attachments?: Attachment[];
   events?: Audit[];
+  gallery_consent?: number;
+  gallery_hidden?: number;
+  gallery?: GalleryState;
+}
+export interface GalleryState {
+  consent: boolean;
+  hidden: boolean;
+  imageId: number | null;
+  published: boolean;
+  requireApproval: boolean;
+}
+export interface GalleryPost {
+  id: number;
+  title: string;
+  category: string;
+  organization: string;
+  activityDate: string;
+  text: string;
+  publishedAt: string;
+  image: string;
 }
 export interface Staff extends User {
   created_at: string;

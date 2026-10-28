@@ -122,15 +122,29 @@ async function withState(faculty, operation) {
     db.close();
   }
 }
-function publicRequest(r, state) {
+/* شرط النشر في المعرض (نفس منطق الخادم). النشر لا يعني الاعتماد ولا يمنح درجة. */
+const isPublished = (r, faculty) =>
+  Boolean(r.gallery_consent) &&
+  !r.gallery_hidden &&
+  (faculty.gallery?.requireApproval ? ['approved'] : ['pending', 'approved']).includes(r.status) &&
+  r.attachments.some((f) => f.kind === 'gallery');
+function publicRequest(r, state, faculty) {
   const u = state.users.find((u) => u.id === r.user_id);
   const { versions, attachments, ...fields } = r;
+  const image = [...attachments].reverse().find((f) => f.kind === 'gallery');
   return {
     ...fields,
     student_name: u.name,
     student_id: u.student_id,
     year: u.year,
-    attachments: attachments.map(({ blob, ...file }) => file),
+    gallery: {
+      consent: Boolean(r.gallery_consent),
+      hidden: Boolean(r.gallery_hidden),
+      imageId: image ? image.id : null,
+      published: isPublished(r, faculty),
+      requireApproval: Boolean(faculty.gallery?.requireApproval),
+    },
+    attachments: attachments.filter((f) => f.kind !== 'gallery').map(({ blob, ...file }) => file),
   };
 }
 function record(r, user, action, note = '') {
@@ -179,6 +193,32 @@ async function handle(request, url) {
           preview: true,
           faculty,
         });
+      if (route === '/gallery' && method === 'GET') {
+        const posts = state.requests
+          .filter((r) => r.period === faculty.periodId && isPublished(r, faculty))
+          .sort((a, b) => String(b.submitted_at).localeCompare(String(a.submitted_at)))
+          .slice(0, 12)
+          .map((r) => ({
+            id: r.id,
+            title: r.title,
+            category: r.category,
+            organization: r.organization,
+            activityDate: r.activity_date,
+            text: r.description,
+            publishedAt: r.submitted_at,
+            image: `/api/gallery/${r.id}/image`,
+          }));
+        return json({ posts });
+      }
+      const galleryImage = route.match(/^\/gallery\/(\d+)\/image$/);
+      if (galleryImage && method === 'GET') {
+        const r = state.requests.find((r) => r.id === Number(galleryImage[1]));
+        fail(r && isPublished(r, faculty), 404, 'الصورة غير موجودة.');
+        const f = [...r.attachments].reverse().find((f) => f.kind === 'gallery');
+        return new Response(f.blob, {
+          headers: { 'Content-Type': f.mime, 'Cache-Control': 'no-store' },
+        });
+      }
       if (route === '/demo-accounts')
         return json({
           accounts: ['student', 'moderator', 'admin'].map((role) => ({
@@ -265,7 +305,7 @@ async function handle(request, url) {
         const r = state.requests.find(
           (r) => r.user_id === user.id && r.period === faculty.periodId,
         );
-        return json({ request: r ? publicRequest(r, state) : null });
+        return json({ request: r ? publicRequest(r, state, faculty) : null });
       }
       if (route === '/requests' && method === 'POST') {
         fail(user.role === 'student', 403, 'التقديم للطلاب فقط.');
@@ -297,13 +337,13 @@ async function handle(request, url) {
           events: [],
         };
         state.requests.push(r);
-        return json({ request: publicRequest(r, state) }, 201);
+        return json({ request: publicRequest(r, state, faculty) }, 201);
       }
-      let match = route.match(/^\/requests\/(\d+)(?:\/(submit|attachments|form))?$/);
+      let match = route.match(/^\/requests\/(\d+)(?:\/(submit|attachments|form|gallery))?$/);
       if (match) {
         const r = get(match[1]);
         const action = match[2];
-        if (!action && method === 'GET') return json({ request: publicRequest(r, state) });
+        if (!action && method === 'GET') return json({ request: publicRequest(r, state, faculty) });
         if (!action && method === 'PUT') {
           editable(r);
           for (const [key, max] of [
@@ -321,21 +361,31 @@ async function handle(request, url) {
             r[key] = input[key].trim();
           }
           r.updated_at = stamp();
-          return json({ request: publicRequest(r, state) });
+          return json({ request: publicRequest(r, state, faculty) });
         }
         if (action === 'attachments' && method === 'POST') {
           editable(r);
-          fail(r.attachments.length < 5, 400, 'الحد الأقصى خمسة ملفات.');
+          const kind = url.searchParams.get('kind') === 'gallery' ? 'gallery' : 'document';
+          fail(
+            kind === 'gallery' || r.attachments.filter((f) => f.kind !== 'gallery').length < 5,
+            400,
+            'الحد الأقصى خمسة ملفات.',
+          );
           fail(file, 400, 'اختر المستند.');
+          if (kind === 'gallery') {
+            fail(file.type !== 'application/pdf', 400, 'صورة المعرض يجب أن تكون PNG أو JPG.');
+            r.attachments = r.attachments.filter((f) => f.kind !== 'gallery');
+          }
           r.attachments.push({
             id: state.nextAttachment++,
-            original_name: file.name,
+            original_name: kind === 'gallery' ? 'gallery-image' : file.name,
             mime: file.type,
             size: file.size,
             created_at: stamp(),
+            kind,
             blob: file,
           });
-          return json({ request: publicRequest(r, state) }, 201);
+          return json({ request: publicRequest(r, state, faculty) }, 201);
         }
         if (action === 'submit' && method === 'POST') {
           editable(r);
@@ -355,7 +405,16 @@ async function handle(request, url) {
             400,
             'راجع تاريخ المشاركة.',
           );
-          fail(r.attachments.length > 0, 400, 'أرفق مستندًا واحدًا على الأقل.');
+          fail(
+            r.attachments.some((f) => f.kind !== 'gallery'),
+            400,
+            'أرفق مستندًا واحدًا على الأقل.',
+          );
+          fail(
+            !r.gallery_consent || r.attachments.some((f) => f.kind === 'gallery'),
+            400,
+            'أضف صورة المعرض أو ألغِ خيار النشر قبل الإرسال.',
+          );
           r.status = 'pending';
           r.version++;
           r.submitted_at = stamp();
@@ -372,7 +431,14 @@ async function handle(request, url) {
             version: r.version,
           });
           record(r, user, 'submitted', 'تم تقديم النشاط للمراجعة');
-          return json({ request: publicRequest(r, state) });
+          return json({ request: publicRequest(r, state, faculty) });
+        }
+        if (action === 'gallery' && method === 'PUT') {
+          fail(user.role === 'student' && r.user_id === user.id, 403, 'غير مسموح.');
+          fail(typeof input.consent === 'boolean', 400, 'طلب غير صحيح.');
+          if (input.consent) editable(r);
+          r.gallery_consent = input.consent ? 1 : 0;
+          return json({ request: publicRequest(r, state, faculty) });
         }
         if (action === 'form' && method === 'GET') {
           fail(r.version > 0, 409, 'قدم الطلب أولًا.');
@@ -412,7 +478,7 @@ async function handle(request, url) {
           recent: submitted()
             .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
             .slice(0, 6)
-            .map((r) => publicRequest(r, state)),
+            .map((r) => publicRequest(r, state, faculty)),
         });
       }
       if (route === '/staff/requests') {
@@ -433,11 +499,26 @@ async function handle(request, url) {
           })
           .sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
         return json({
-          requests: rows.slice((page - 1) * 10, page * 10).map((r) => publicRequest(r, state)),
+          requests: rows
+            .slice((page - 1) * 10, page * 10)
+            .map((r) => publicRequest(r, state, faculty)),
           total: rows.length,
           page,
           limit: 10,
         });
+      }
+      match = route.match(/^\/staff\/requests\/(\d+)\/gallery-hidden$/);
+      if (match && method === 'POST') {
+        const r = get(match[1]);
+        fail(typeof input.hidden === 'boolean', 400, 'طلب غير صحيح.');
+        r.gallery_hidden = input.hidden ? 1 : 0;
+        record(
+          r,
+          user,
+          input.hidden ? 'gallery_hidden' : 'gallery_shown',
+          input.hidden ? 'إخفاء النشاط من المعرض العام' : 'إظهار النشاط في المعرض العام',
+        );
+        return json({ request: publicRequest(r, state, faculty) });
       }
       match = route.match(/^\/staff\/requests\/(\d+)\/review$/);
       if (match && method === 'POST') {
@@ -487,7 +568,7 @@ async function handle(request, url) {
           action === 'revoke' ? 'revoked' : action === 'reopen' ? 'reopened' : target,
           note,
         );
-        return json({ request: publicRequest(r, state) });
+        return json({ request: publicRequest(r, state, faculty) });
       }
       if (route.startsWith('/admin/')) admin();
       if (route === '/admin/staff' && method === 'GET')

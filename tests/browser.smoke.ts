@@ -67,7 +67,7 @@ try {
   });
   await student.getByRole('link', { name: 'participation.png', exact: true }).waitFor();
   await student.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
-  await student.getByRole('checkbox').check();
+  await student.locator('.modal').getByRole('checkbox').check();
   await student.getByRole('button', { name: 'تأكيد التقديم', exact: true }).click();
   await student.getByRole('heading', { name: 'تم استلام طلبك بنجاح' }).waitFor();
   assert.equal(await student.locator('#activity-title').isDisabled(), true);
@@ -104,7 +104,7 @@ try {
       'توليت استقبال المشاركين وتسجيل بيانات الحضور وتوزيع المواد التوعوية وتوجيههم إلى فريق التنظيم.',
     );
   await student.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
-  await student.getByRole('checkbox').check();
+  await student.locator('.modal').getByRole('checkbox').check();
   await student.getByRole('button', { name: 'تأكيد التقديم', exact: true }).click();
   await student.getByRole('heading', { name: 'تم استلام طلبك بنجاح' }).waitFor();
   const downloadPromise = student.waitForEvent('download');
@@ -148,6 +148,16 @@ try {
         `Horizontal overflow at ${width} ${route}`,
       );
       if (width === 390 && route === '/dashboard') await screenshot(student, 'student-mobile.png');
+      // الصور المؤجلة (lazy) خارج الشاشة لا تبدأ التحميل وحدها: نطلبها صراحةً قبل الفحص.
+      await student.locator('img').evaluateAll((images) =>
+        Promise.all(
+          images.map(async (image) => {
+            const img = image as HTMLImageElement;
+            img.loading = 'eager';
+            await img.decode().catch(() => {});
+          }),
+        ),
+      );
       assert.equal(
         await student
           .locator('img')

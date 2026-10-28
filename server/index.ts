@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, faculty, hashPassword, now } from './db';
 import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
+import { sanitizeGalleryImage } from './gallery';
 import type { ActivityRequest, Role, User } from '../src/types';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -158,12 +159,33 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     assert(r && (user.role !== 'student' || r.user_id === user.id), 404, 'الطلب غير موجود.');
     return r;
   }
+  /**
+   * شرط النشر في المعرض العام. النشر لا يعني اعتماد النشاط ولا يمنح أي درجة:
+   * الدرجة مرتبطة بحالة approved فقط. مفتاح الموافقة المسبقة: config/faculty.json → gallery.requireApproval
+   */
+  const galleryStatuses = faculty.gallery?.requireApproval
+    ? "('approved')"
+    : "('pending','approved')";
+  const publishedSql = `r.gallery_consent=1 AND r.gallery_hidden=0 AND r.status IN ${galleryStatuses} AND EXISTS (SELECT 1 FROM attachments g WHERE g.request_id=r.id AND g.kind='gallery')`;
   function detail(r: ActivityRequest) {
+    const galleryImage = db
+      .prepare("SELECT id FROM attachments WHERE request_id=? AND kind='gallery' ORDER BY id DESC")
+      .get(r.id) as { id: number } | undefined;
+    const published = db
+      .prepare(`SELECT 1 AS ok FROM requests r WHERE r.id=? AND ${publishedSql}`)
+      .get(r.id);
     return {
       ...r,
+      gallery: {
+        consent: Boolean(r.gallery_consent),
+        hidden: Boolean(r.gallery_hidden),
+        imageId: galleryImage?.id ?? null,
+        published: Boolean(published),
+        requireApproval: Boolean(faculty.gallery?.requireApproval),
+      },
       attachments: db
         .prepare(
-          'SELECT id,original_name,mime,size,created_at FROM attachments WHERE request_id=? ORDER BY id',
+          "SELECT id,original_name,mime,size,created_at FROM attachments WHERE request_id=? AND kind='document' ORDER BY id",
         )
         .all(r.id),
       events: db
@@ -310,9 +332,15 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       'يرجى استكمال بيانات النشاط والتأكد من صحة التاريخ والوصف (٢٠ حرفًا على الأقل).',
     );
     const attachments = db
-      .prepare('SELECT count(*) AS n FROM attachments WHERE request_id=?')
+      .prepare("SELECT count(*) AS n FROM attachments WHERE request_id=? AND kind='document'")
       .get(r.id) as { n: number };
     assert(attachments.n > 0, 400, 'أرفق مستندًا واحدًا على الأقل قبل إرسال الطلب.');
+    if (r.gallery_consent) {
+      const gallery = db
+        .prepare("SELECT count(*) AS n FROM attachments WHERE request_id=? AND kind='gallery'")
+        .get(r.id) as { n: number };
+      assert(gallery.n > 0, 400, 'أضف صورة المعرض أو ألغِ خيار النشر قبل الإرسال.');
+    }
     transaction(() => {
       const date = now();
       const version = r.version + 1;
@@ -357,11 +385,12 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       const r = getRequest(parseId(String(req.params.id)), res.locals.user);
       const file = req.file;
       assert(file, 400, 'اختر الملف المطلوب رفعه.');
+      const kind = req.query.kind === 'gallery' ? 'gallery' : 'document';
       const count = db
-        .prepare('SELECT count(*) AS n FROM attachments WHERE request_id=?')
-        .get(r.id) as { n: number };
-      assert(count.n < 5, 400, 'الحد الأقصى خمسة مرفقات.');
-      const b = file.buffer;
+        .prepare('SELECT count(*) AS n FROM attachments WHERE request_id=? AND kind=?')
+        .get(r.id, kind) as { n: number };
+      assert(kind === 'gallery' || count.n < 5, 400, 'الحد الأقصى خمسة مرفقات.');
+      let b = file.buffer;
       const detected =
         b.subarray(0, 5).toString() === '%PDF-'
           ? 'application/pdf'
@@ -375,6 +404,23 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
         400,
         'يُسمح فقط بملفات PDF وصور PNG وJPG الصحيحة.',
       );
+      if (kind === 'gallery') {
+        assert(detected !== 'application/pdf', 400, 'صورة المعرض يجب أن تكون PNG أو JPG.');
+        try {
+          b = sanitizeGalleryImage(b, detected);
+        } catch {
+          assert(false, 400, 'تعذر قراءة الصورة. اختر صورة JPG أو PNG سليمة.');
+        }
+        // صورة واحدة فقط للمعرض: القديمة تُستبدل.
+        const old = db
+          .prepare("SELECT id,stored_name FROM attachments WHERE request_id=? AND kind='gallery'")
+          .all(r.id) as { id: number; stored_name: string }[];
+        for (const o of old) {
+          db.prepare('DELETE FROM attachments WHERE id=?').run(o.id);
+          if (existsSync(path.join(uploadDir, o.stored_name)))
+            unlinkSync(path.join(uploadDir, o.stored_name));
+        }
+      }
       const storedName = randomBytes(24).toString('hex');
       const original =
         path
@@ -384,8 +430,16 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       writeFileSync(path.join(uploadDir, storedName), b, { mode: 0o600 });
       try {
         db.prepare(
-          'INSERT INTO attachments (request_id,original_name,stored_name,mime,size,created_at) VALUES (?,?,?,?,?,?)',
-        ).run(r.id, original, storedName, detected, file.size, now());
+          'INSERT INTO attachments (request_id,original_name,stored_name,mime,size,created_at,kind) VALUES (?,?,?,?,?,?,?)',
+        ).run(
+          r.id,
+          kind === 'gallery' ? 'gallery-image' : original,
+          storedName,
+          detected,
+          b.length,
+          now(),
+          kind,
+        );
       } catch (e) {
         unlinkSync(path.join(uploadDir, storedName));
         throw e;
@@ -404,6 +458,80 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     if (existsSync(path.join(uploadDir, file.stored_name)))
       unlinkSync(path.join(uploadDir, file.stored_name));
     res.json({ ok: true });
+  });
+  // موافقة الطالب على عرض نشاطه في المعرض (بدون اسمه). السحب مسموح في أي وقت، والمنح أثناء التعديل فقط.
+  app.put('/api/requests/:id/gallery', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const r = getRequest(parseId(String(req.params.id)), user);
+    assert(user.role === 'student' && r.user_id === user.id, 403, 'غير مسموح.');
+    const consent = z.object({ consent: z.boolean() }).safeParse(req.body);
+    assert(consent.success, 400, 'طلب غير صحيح.');
+    if (consent.data.consent) editable(r, user);
+    // لا نغيّر updated_at حتى لا تُعاد تهيئة نموذج الطالب أثناء الكتابة.
+    db.prepare('UPDATE requests SET gallery_consent=? WHERE id=?').run(
+      consent.data.consent ? 1 : 0,
+      r.id,
+    );
+    res.json({ request: detail(getRequest(r.id, user)) });
+  });
+  // إخفاء/إظهار نشاط في المعرض من طرف الموظف (إشراف لاحق، لا علاقة له بالاعتماد).
+  app.post('/api/staff/requests/:id/gallery-hidden', auth, staff, (req, res) => {
+    const input = z.object({ hidden: z.boolean() }).safeParse(req.body);
+    assert(input.success, 400, 'طلب غير صحيح.');
+    const r = getRequest(parseId(String(req.params.id)), res.locals.user);
+    db.prepare('UPDATE requests SET gallery_hidden=? WHERE id=?').run(
+      input.data.hidden ? 1 : 0,
+      r.id,
+    );
+    log(
+      res.locals.user.id,
+      r.id,
+      input.data.hidden ? 'gallery_hidden' : 'gallery_shown',
+      input.data.hidden ? 'إخفاء النشاط من المعرض العام' : 'إظهار النشاط في المعرض العام',
+    );
+    res.json({ request: detail(getRequest(r.id, res.locals.user)) });
+  });
+  // المعرض العام: بدون تسجيل دخول، وبدون اسم الطالب أو رقمه أو أي معرّف شخصي.
+  const galleryLimit = rateLimit({ windowMs: 60 * 1000, limit: 120 });
+  app.get('/api/gallery', galleryLimit, (_req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT r.id,r.title,r.category,r.organization,r.activity_date,r.description,r.submitted_at FROM requests r WHERE r.period=? AND ${publishedSql} ORDER BY r.submitted_at DESC LIMIT 12`,
+      )
+      .all(faculty.periodId) as {
+      id: number;
+      title: string;
+      category: string;
+      organization: string;
+      activity_date: string;
+      description: string;
+      submitted_at: string;
+    }[];
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      posts: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        organization: r.organization,
+        activityDate: r.activity_date,
+        text: r.description,
+        publishedAt: r.submitted_at,
+        image: `/api/gallery/${r.id}/image`,
+      })),
+    });
+  });
+  app.get('/api/gallery/:id/image', galleryLimit, (req, res) => {
+    const id = parseId(String(req.params.id));
+    const file = db
+      .prepare(
+        `SELECT g.stored_name,g.mime FROM requests r JOIN attachments g ON g.request_id=r.id AND g.kind='gallery' WHERE r.id=? AND ${publishedSql} ORDER BY g.id DESC`,
+      )
+      .get(id) as { stored_name: string; mime: string } | undefined;
+    assert(file, 404, 'الصورة غير موجودة.');
+    res.setHeader('Content-Type', file.mime);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.sendFile(path.join(uploadDir, file.stored_name));
   });
   app.get('/api/attachments/:id', auth, (req, res) => {
     const file = db

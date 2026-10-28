@@ -14,7 +14,8 @@
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "test:browser": "tsx tests/browser.smoke.ts",
-    "test:preview": "tsx tests/preview.smoke.ts"
+    "test:preview": "tsx tests/preview.smoke.ts",
+    "test:gallery": "tsx tests/gallery.smoke.ts"
   },
   "dependencies": {
     "cross-env": "^10.1.0",

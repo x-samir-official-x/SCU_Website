@@ -232,3 +232,27 @@ export function Empty({
     </div>
   );
 }
+/**
+ * يجهّز صورة المعرض داخل المتصفح قبل رفعها: يصحح الاتجاه، ويصغّرها (حتى ١٦٠٠ بكسل)،
+ * ويعيد ترميزها JPEG، فتسقط كل البيانات الوصفية (الموقع، الكاميرا، التاريخ…).
+ */
+export async function prepareGalleryImage(file: File): Promise<File> {
+  if (!['image/jpeg', 'image/png'].includes(file.type)) throw new Error('اختر صورة JPG أو PNG.');
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => {
+    throw new Error('تعذر قراءة الصورة. اختر صورة سليمة.');
+  });
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.86),
+  );
+  if (!blob) throw new Error('تعذر تجهيز الصورة.');
+  return new File([blob], 'gallery.jpg', { type: 'image/jpeg' });
+}

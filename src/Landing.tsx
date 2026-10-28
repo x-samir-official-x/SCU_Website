@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, logoSrc, useSession } from './lib';
+import type { GalleryPost } from './types';
 import { Ambient } from './Ambient';
 import { FloatingNav } from './FloatingNav';
 import { useCountUp, usePointerParallax, useReveal } from './hooks';
@@ -65,15 +66,43 @@ const faqs = [
   ],
   [
     'هل تظهر بياناتي ومستنداتي للزوار؟',
-    'المرفقات والبيانات الشخصية داخل طلبك ليست منشورات عامة. المعرض الحالي يعرض نماذج توضيحية فقط؛ إتاحة مشاركات حقيقية تحتاج موافقة صاحبها ومراجعة المحتوى قبل النشر.',
+    'لا. مرفقاتك وبياناتك الشخصية داخل طلبك لا تظهر لأحد. وإن اخترت نشر صورة نشاطك في المعرض، تظهر الصورة ووصف النشاط فقط بدون اسمك أو رقمك الجامعي، ويمكنك سحب موافقتك في أي وقت. النشر في المعرض لا يعني اعتماد النشاط ولا يمنح أي درجة.',
   ],
 ];
 
+type ShowPost = (typeof posts)[number] & { real?: boolean };
+const MIN_CARDS = 3;
 export function ActivityGallery({ full = false }: { full?: boolean }) {
   const [filter, setFilter] = useState('الكل');
   const [selected, setSelected] = useState<string | null>(null);
+  const [realPosts, setRealPosts] = useState<GalleryPost[]>([]);
   const dialog = useRef<HTMLDialogElement>(null);
-  const active = posts.find((p) => p.id === selected);
+  useEffect(() => {
+    let current = true;
+    api<{ posts: GalleryPost[] }>('/gallery')
+      .then((r) => current && setRealPosts(r.posts))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, []);
+  // المنشورات الحقيقية أولًا (بدون اسم الطالب: المصدر هو الجهة/الفريق)، وتُكمَّل النماذج التوضيحية حتى ٣ بطاقات.
+  const shown: ShowPost[] = [
+    ...realPosts.map<ShowPost>((p) => ({
+      id: `real-${p.id}`,
+      category: p.category,
+      title: p.title,
+      text: p.text,
+      image: p.image,
+      alt: `صورة من نشاط: ${p.title}`,
+      author: p.organization,
+      kind: 'photo',
+      real: true,
+    })),
+    ...posts.slice(0, Math.max(0, MIN_CARDS - realPosts.length)),
+  ];
+  const categories = ['الكل', ...Array.from(new Set(shown.map((p) => p.category)))];
+  const active = shown.find((p) => p.id === selected);
   const navigate = useNavigate();
   const { session } = useSession();
   function open(id: string) {
@@ -87,14 +116,14 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
   return (
     <>
       <div className="activity-filters" aria-label="تصفية نماذج الأنشطة">
-        {['الكل', 'عمل تطوعي', 'مبادرة طلابية', 'خدمة مجتمعية'].map((item) => (
+        {categories.map((item) => (
           <button key={item} aria-pressed={filter === item} onClick={() => setFilter(item)}>
             {item}
           </button>
         ))}
       </div>
       <div className="activity-showcase">
-        {posts
+        {shown
           .filter((p) => filter === 'الكل' || p.category === filter)
           .map((post) => (
             <article className="public-post" key={post.id}>
@@ -117,7 +146,7 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
                 </span>
               </button>
               <div className="post-copy">
-                <span className="sample-label">نموذج توضيحي</span>
+                {!post.real && <span className="sample-label">نموذج توضيحي</span>}
                 <h3>
                   <button onClick={() => open(post.id)}>{post.title}</button>
                 </h3>
@@ -165,12 +194,15 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
           <>
             <img src={active.image} alt={active.alt} width="720" height="540" />
             <div className="post-dialog-copy">
-              <span className="sample-label">نموذج توضيحي — ليس مشاركة فعلية</span>
+              {!active.real && (
+                <span className="sample-label">نموذج توضيحي — ليس مشاركة فعلية</span>
+              )}
               <h2>{active.title}</h2>
               <p>{active.text}</p>
               <p>
-                هذا نموذج لشكل منشور النشاط. مستندات الطالب واستمارة التسجيل لا تظهر في المعرض
-                العام.
+                {active.real
+                  ? 'نُشرت هذه المشاركة بموافقة صاحبها، بدون اسمه أو بياناته. نشرها لا يعني اعتماد النشاط أو احتساب درجته.'
+                  : 'هذا نموذج لشكل منشور النشاط. مستندات الطالب واستمارة التسجيل لا تظهر في المعرض العام.'}
               </p>
               <Link
                 className="lp-button lp-navy"
@@ -358,7 +390,9 @@ export function Landing() {
             </div>
             <p>
               تطوّع، مبادرات، وخبرات نتبادلها. استكشف شكل المشاركات التي ستجمعنا هنا.
-              <small>المحتوى والصور التالية نماذج توضيحية للواجهة.</small>
+              <small>
+                المشاركات الحقيقية تُنشر بموافقة أصحابها وبدون أسمائهم، وما عداها نماذج توضيحية.
+              </small>
             </p>
           </div>
           <div data-reveal="up" style={delay(1)}>

@@ -46,6 +46,7 @@ import {
 } from './lib';
 import type { ActivityRequest, Attachment } from './types';
 import { AcademicSeal } from './Brand';
+import { GalleryOptIn } from './GalleryOptIn';
 
 export function ProgressRing({ approved, large = false }: { approved: boolean; large?: boolean }) {
   return (
@@ -505,6 +506,10 @@ export function ActivityPage() {
       setValidation('يرجى إرفاق مستند مؤيد واحد على الأقل قبل التقديم.');
       return;
     }
+    if (r.gallery?.consent && !r.gallery.imageId) {
+      setValidation('أضف صورة المعرض أو ألغِ خيار النشر قبل التقديم.');
+      return;
+    }
     setConfirm(true);
   }
   async function submit() {
@@ -714,6 +719,14 @@ export function ActivityPage() {
           {!editable && !r?.attachments?.length && (
             <p className="muted">لا توجد مرفقات في هذا السجل التجريبي.</p>
           )}
+          {(editable || r?.gallery?.consent) && (
+            <GalleryOptIn
+              request={r}
+              ensureRequest={ensureRequest}
+              onChange={(request) => state.setData({ request })}
+              disabled={!editable}
+            />
+          )}
           {validation && (
             <div className="form-error" role="alert">
               {validation}
@@ -831,6 +844,8 @@ const eventLabels: Record<string, string> = {
   cancelled: 'إلغاء الطلب',
   reopened: 'إعادة فتح الطلب',
   revoked: 'سحب الاعتماد',
+  gallery_hidden: 'إخفاء من المعرض العام',
+  gallery_shown: 'إظهار في المعرض العام',
 };
 export function EventTimeline({ events }: { events: NonNullable<ActivityRequest['events']> }) {
   return (
