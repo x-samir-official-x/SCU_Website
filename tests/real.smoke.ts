@@ -69,7 +69,7 @@ try {
   await student.locator('input[name=student_id]').fill('20269999');
   await student.locator('input[name=email]').fill('mona@example.com');
   await student.locator('input[name=phone]').fill('01012345678');
-  await student.locator('input[name=password]').fill('MonaPass2026!x');
+  await student.locator('input[name=password]').fill('Zx-Plum-2026!x');
   await student.locator('select[name=year]').selectOption({ index: 1 });
   await student.locator('input[name=accepted_terms]').check();
   await student.getByRole('button', { name: /إنشاء/ }).last().click();
