@@ -70,8 +70,10 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
   };
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError('');
+    if (!email.trim()) return setError('اكتب بريدك الإلكتروني.');
+    if (!password) return setError('اكتب كلمة المرور.');
+    setBusy(true);
     try {
       await api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       await refresh();
@@ -87,10 +89,12 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
       <section className="login-story">
         <Mark light />
         <div className="login-story-body">
+          <span className="login-wordmark" lang="ar">
+            {session.faculty.platformName}
+          </span>
           <span className="login-institution-label">جامعة قناة السويس</span>
           <h1>
-            بوابة النشاط
-            <br />
+            بوابة النشاط <br />
             الطلابي
           </h1>
           <p>
@@ -141,7 +145,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
               </button>
             </div>
           )}
-          <form onSubmit={submit}>
+          <form onSubmit={submit} noValidate>
             <label>
               البريد الإلكتروني
               <input

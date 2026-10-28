@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { api, logoSrc, useSession } from './lib';
 import type { GalleryPost } from './types';
-import { TERMS, normalizeDigits } from './terms';
+import { TERMS } from './terms';
+import { validateRegistration } from './registration';
 import { Ambient } from './Ambient';
 import { FloatingNav } from './FloatingNav';
 import { useCountUp, usePointerParallax, useReveal } from './hooks';
@@ -561,9 +562,10 @@ export function Register() {
     const form = new FormData(event.currentTarget);
     const data = Object.fromEntries(form) as Record<string, unknown>;
     data.accepted_terms = form.get('accepted_terms') === 'on';
-    // الرقم الجامعي أو القومي: يكفي واحد منهما (التحقق النهائي في الخادم).
-    if (!normalizeDigits(data.student_id) && !normalizeDigits(data.national_id)) {
-      setError('اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي. يكفي واحد منهما.');
+    // نفس قواعد الخادم، برسائل عربية بدل رسائل المتصفح الإنجليزية (التحقق النهائي في الخادم أيضًا).
+    const checked = validateRegistration(data);
+    if (!checked.ok) {
+      setError(checked.error);
       return;
     }
     setBusy(true);
@@ -600,7 +602,7 @@ export function Register() {
                 ? 'حساب تجريبي داخل متصفحك فقط. استخدم بيانات وهمية؛ التحقق من القيد الجامعي غير مفعّل.'
                 : 'أنشئ حسابك لتسجيل نشاطك ومتابعة اعتماده.'}
             </p>
-            <form onSubmit={submit}>
+            <form onSubmit={submit} noValidate>
               <label>
                 الاسم الكامل
                 <input name="name" required minLength={3} maxLength={100} autoComplete="name" />
@@ -692,7 +694,11 @@ export function Register() {
                 <span>قرأت شروط الاستخدام وأوافق عليها.</span>
               </label>
               {error && (
-                <p className="form-error" role="alert">
+                <p
+                  className="form-error"
+                  role="alert"
+                  ref={(el) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                >
                   {error}
                 </p>
               )}
