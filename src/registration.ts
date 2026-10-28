@@ -78,7 +78,7 @@ export function weakPasswordReason(password: string, ...personal: (string | null
  */
 export function validateRegistration(
   input: Record<string, unknown>,
-): { ok: true; value: RegistrationValue } | { ok: false; error: string } {
+): { ok: true; value: RegistrationValue } | { ok: false; error: string; field?: string } {
   const name = String(input.name ?? '').trim();
   const email = String(input.email ?? '')
     .trim()
@@ -86,23 +86,29 @@ export function validateRegistration(
   const password = String(input.password ?? '');
   const studentId = normalizeDigits(input.student_id);
   const nationalId = normalizeDigits(input.national_id);
-  const fail = (error: string) => ({ ok: false as const, error });
-  if (name.length < 3 || name.length > 100) return fail('اكتب اسمًا من ٣ إلى ١٠٠ حرف.');
-  if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    return fail('راجع البريد الإلكتروني.');
+  const fail = (error: string, field?: string) => ({ ok: false as const, error, field });
+  // الترتيب نفسه الذي تظهر به الحقول في الصفحة، فيقع التركيز على أعلى حقل به مشكلة.
+  if (name.length < 3 || name.length > 100) return fail('اكتب اسمًا من ٣ إلى ١٠٠ حرف.', 'name');
   if (!studentId && !nationalId)
-    return fail('اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي. يكفي واحد منهما.');
+    return fail(
+      'اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي. يكفي واحد منهما.',
+      'student_id',
+    );
   if (studentId && !/^[0-9]{4,20}$/.test(studentId))
-    return fail('الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
-  if (nationalId && !/^[0-9]{14}$/.test(nationalId)) return fail('الرقم القومي ١٤ رقمًا.');
-  if (password.length < 8 || password.length > 100) return fail('كلمة المرور من ٨ إلى ١٠٠ حرف.');
-  const weak = weakPasswordReason(password, email, studentId, nationalId);
-  if (weak) return fail(weak);
+    return fail('الرقم الجامعي من ٤ إلى ٢٠ رقمًا.', 'student_id');
+  if (nationalId && !/^[0-9]{14}$/.test(nationalId))
+    return fail('الرقم القومي ١٤ رقمًا.', 'national_id');
+  if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return fail('راجع البريد الإلكتروني.', 'email');
   const phone = validatePhone(input.phone);
-  if (!phone.ok) return fail(phone.error);
-  if (!YEARS.includes(String(input.year))) return fail('اختر الفرقة الدراسية.');
+  if (!phone.ok) return fail(phone.error, 'phone');
+  if (password.length < 8 || password.length > 100)
+    return fail('كلمة المرور من ٨ إلى ١٠٠ حرف.', 'password');
+  const weak = weakPasswordReason(password, email, studentId, nationalId);
+  if (weak) return fail(weak, 'password');
+  if (!YEARS.includes(String(input.year))) return fail('اختر الفرقة الدراسية.', 'year');
   if (input.accepted_terms !== true && input.accepted_terms !== 'on')
-    return fail('يجب الموافقة على الشروط لإنشاء الحساب.');
+    return fail('يجب الموافقة على الشروط لإنشاء الحساب.', 'accepted_terms');
   return {
     ok: true,
     value: {

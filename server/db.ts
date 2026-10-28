@@ -167,7 +167,7 @@ function seedDemo(db: DatabaseSync) {
           category,
           org,
           '2026-10-20',
-          'بيانات تجريبية لعرض دورة مراجعة النشاط. ليست سجلًا أو شهادة فعلية.',
+          'مشاركة ضمن أنشطة الكلية.',
           status,
           note,
           timestamp,
@@ -188,7 +188,7 @@ function seedDemo(db: DatabaseSync) {
       );
       db.prepare(
         'INSERT INTO events (request_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?)',
-      ).run(id, uid, 'submitted', 'طلب تجريبي', timestamp);
+      ).run(id, uid, 'submitted', 'تم تقديم الطلب', timestamp);
       if (status !== 'pending')
         db.prepare(
           'INSERT INTO events (request_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?)',

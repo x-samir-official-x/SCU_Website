@@ -541,7 +541,7 @@ export function ReviewPage() {
             <Attachments files={r.attachments} />
             {!isBrowserPreview && <CertificateReader files={r.attachments ?? []} />}
             {!r.attachments?.length && (
-              <p className="muted small-text">هذا طلب توضيحي ببيانات تجريبية دون مرفقات.</p>
+              <p className="muted small-text">لا توجد مرفقات في هذا الطلب.</p>
             )}
           </section>
           {r.gallery?.consent && (
