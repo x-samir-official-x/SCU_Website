@@ -18,6 +18,8 @@
     "test:gallery": "tsx tests/gallery.smoke.ts"
   },
   "dependencies": {
+    "@tesseract.js-data/ara": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "cross-env": "^10.1.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
@@ -28,6 +30,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",
+    "tesseract.js": "^7.0.0",
     "tsx": "^4.20.6",
     "zod": "^4.1.12"
   },

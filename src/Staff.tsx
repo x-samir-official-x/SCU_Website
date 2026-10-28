@@ -1,4 +1,5 @@
 import { isBrowserPreview } from './preview-bootstrap';
+import { CertificateReader } from './CertificateReader';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -526,6 +527,7 @@ export function ReviewPage() {
               </a>
             )}
             <Attachments files={r.attachments} />
+            {!isBrowserPreview && <CertificateReader files={r.attachments ?? []} />}
             {!r.attachments?.length && (
               <p className="muted small-text">هذا طلب توضيحي ببيانات تجريبية دون مرفقات.</p>
             )}

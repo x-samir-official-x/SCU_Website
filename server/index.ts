@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase, faculty, hashPassword, now } from './db';
 import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import { sanitizeGalleryImage, publicName } from './gallery';
+import { createOcr } from './ocr';
+import { checkCertificate } from '../src/certificate';
 import { validateRegistration } from '../src/registration';
 import type { ActivityRequest, Role, User } from '../src/types';
 
@@ -623,6 +625,46 @@ export function createApp(
     );
     res.sendFile(path.join(uploadDir, file.stored_name));
   });
+  const ocr = createOcr(dataDir);
+  app.post(
+    '/api/staff/attachments/:id/read',
+    auth,
+    staff,
+    rateLimit({
+      windowMs: 60 * 1000,
+      limit: 10,
+      message: { error: 'يرجى الانتظار قليلًا قبل قراءة مستند آخر.' },
+    }),
+    async (req, res) => {
+      const user: User = res.locals.user;
+      const file = db
+        .prepare("SELECT * FROM attachments WHERE id=? AND kind='document'")
+        .get(parseId(String(req.params.id))) as
+        { id: number; request_id: number; stored_name: string; mime: string } | undefined;
+      assert(file, 404, 'الملف غير موجود.');
+      const r = getRequest(file.request_id, user);
+      let result: { text: string; confidence: number };
+      try {
+        result = await ocr.read(path.join(uploadDir, file.stored_name), file.mime);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'PDF_UNSUPPORTED')
+          throw new HttpError(
+            422,
+            'تعذر قراءة ملف PDF على هذا الخادم. افتح المستند وراجعه يدويًا.',
+          );
+        console.error('OCR failed', error);
+        throw new HttpError(500, 'تعذرت قراءة المستند. راجعه يدويًا.');
+      }
+      log(user.id, r.id, 'document_read', `قراءة آلية لمستند رقم ${file.id}`);
+      const checks = checkCertificate(result.text, {
+        name: r.student_name ?? '',
+        date: r.activity_date,
+        organization: r.organization,
+        title: r.title,
+      });
+      res.json({ text: result.text.slice(0, 4000), confidence: result.confidence, checks });
+    },
+  );
   app.get(
     '/api/requests/:id/form',
     auth,

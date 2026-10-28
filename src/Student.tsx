@@ -900,6 +900,7 @@ const eventLabels: Record<string, string> = {
   revoked: 'سحب الاعتماد',
   gallery_hidden: 'إخفاء من المعرض العام',
   gallery_shown: 'إظهار في المعرض العام',
+  document_read: 'قراءة آلية لمستند',
 };
 export function EventTimeline({ events }: { events: NonNullable<ActivityRequest['events']> }) {
   return (
