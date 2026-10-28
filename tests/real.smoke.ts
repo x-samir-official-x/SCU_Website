@@ -9,6 +9,7 @@ import type { Server } from 'node:http';
 
 process.env.ADMIN_EMAIL = 'admin@scu.local';
 process.env.ADMIN_PASSWORD = 'ShowAdmin2026!x';
+process.env.ADMIN_NAME = 'سمير الإدارة';
 const { createApp } = await import('../server/index');
 const { browserExecutable } = await import('../server/browser');
 const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-real-'));
@@ -44,6 +45,7 @@ try {
   assert.equal((await fetch(`${base}/api/demo-accounts`)).status, 404, 'no demo accounts in real mode');
   const publicCount = (db.prepare('SELECT count(*) c FROM users').get() as { c: number }).c;
   assert.equal(publicCount, 1, 'only the admin exists');
+  assert.equal((db.prepare('SELECT name FROM users').get() as { name: string }).name, 'سمير الإدارة');
 
   // الإدارة على قاعدة فارغة
   const admin = await newPage();

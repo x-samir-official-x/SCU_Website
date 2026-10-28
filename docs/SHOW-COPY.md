@@ -8,6 +8,7 @@
 npm ci
 npm run build
 DATA_DIR=./show-data \
+ADMIN_NAME='اسمك الكامل' \
 ADMIN_EMAIL=admin@your-domain.example \
 ADMIN_PASSWORD='كلمة-مرور-من-12-حرفًا-على-الأقل' \
 REGISTRATION_OPEN=true \
@@ -17,6 +18,7 @@ npm start
 
 - `DATA_DIR` مجلد جديد فارغ. لو فيه بيانات تجريبية قديمة يرفض الخادم التشغيل عمدًا.
 - `ADMIN_EMAIL` و`ADMIN_PASSWORD` يُنشئان المسؤول الرئيسي مرة واحدة عند أول تشغيل فقط.
+- `ADMIN_NAME` اسم المسؤول كما يظهر في الموقع (اختياري؛ الافتراضي «المسؤول الرئيسي»).
 - `REGISTRATION_OPEN=true` يفتح تسجيل الطلاب. بدونه تظهر صفحة «إنشاء الحسابات غير متاح حاليًا» ولا يمكن لأي طالب فتح حساب.
 - `COOKIE_SECURE=false` للتجربة على `http` فقط. على استضافة `https` احذفه.
 - لا تضع كلمات المرور في المستودع؛ مكانها متغيرات بيئة الاستضافة.
