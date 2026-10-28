@@ -18,7 +18,8 @@
     "test:splash": "tsx tests/splash.smoke.ts",
     "test:session": "tsx tests/session.smoke.ts",
     "test:preview": "tsx tests/preview.smoke.ts",
-    "test:gallery": "tsx tests/gallery.smoke.ts"
+    "test:gallery": "tsx tests/gallery.smoke.ts",
+    "test:real": "tsx tests/real.smoke.ts"
   },
   "dependencies": {
     "@tesseract.js-data/ara": "^1.0.0",
