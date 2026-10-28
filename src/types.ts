@@ -8,6 +8,7 @@ export interface User {
   student_id: string | null;
   year: string | null;
   active: number;
+  onboarding_dismissed?: number;
 }
 export interface Faculty {
   platformName: string;

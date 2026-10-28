@@ -16,6 +16,7 @@ const cleanUser = ({ password, national_id, ...user }) => ({
   ...user,
   student_id: idShown({ ...user, national_id }),
 });
+const YEARS = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'];
 /* يجب أن يطابق src/terms.ts */
 const TERMS_VERSION = '2026-10-v1';
 const normalizeDigits = (v) =>
@@ -332,6 +333,69 @@ async function handle(request, url) {
       fail(user, 401, 'يرجى تسجيل الدخول أولًا.');
       if (route === '/logout' && method === 'POST') {
         state.activeUser = null;
+        return json({ ok: true });
+      }
+      const studentOnly = () => fail(user.role === 'student', 403, 'هذه الصفحة للطلاب فقط.');
+      if (route === '/profile' && method === 'GET') {
+        studentOnly();
+        const history = state.requests
+          .filter((r) => r.user_id === user.id && r.status !== 'draft')
+          .sort((a, b) => b.id - a.id)
+          .map((r) => ({
+            id: r.id,
+            period: r.period,
+            title: r.title,
+            status: r.status,
+            submitted_at: r.submitted_at,
+            points: r.status === 'approved' ? faculty.points : 0,
+          }));
+        return json({
+          profile: {
+            name: user.name,
+            email: user.email,
+            year: user.year,
+            idShown: idShown(user),
+            hasUniversityId: Boolean(user.student_id),
+            hasNationalId: Boolean(user.national_id),
+            createdAt: user.created_at,
+            termsVersion: user.terms_version || null,
+            termsAcceptedAt: user.terms_accepted_at || null,
+          },
+          history,
+          totalPoints: history.reduce((n, h) => n + h.points, 0),
+        });
+      }
+      if (route === '/profile/year' && method === 'PUT') {
+        studentOnly();
+        fail(YEARS.includes(input.year), 400, 'اختر الفرقة الدراسية.');
+        user.year = input.year;
+        return json({ ok: true });
+      }
+      if (route === '/profile/university-id' && method === 'PUT') {
+        studentOnly();
+        fail(!user.student_id, 409, 'الرقم الجامعي مسجل بالفعل ولا يمكن تغييره من هنا.');
+        const value = normalizeDigits(input.studentId);
+        fail(/^[0-9]{4,20}$/.test(value), 400, 'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
+        fail(
+          !state.users.some((u) => u.student_id === value),
+          409,
+          'هذا الرقم الجامعي مستخدم في حساب آخر.',
+        );
+        user.student_id = value;
+        return json({ ok: true });
+      }
+      if (route === '/profile/password' && method === 'PUT') {
+        fail(user.password === input.current, 403, 'كلمة المرور الحالية غير صحيحة.');
+        const next = String(input.password || '');
+        fail(next.length >= 8 && next.length <= 100, 400, 'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.');
+        fail(next !== input.current, 400, 'اختر كلمة مرور مختلفة عن الحالية.');
+        user.password = next;
+        return json({ ok: true });
+      }
+      if (route === '/profile/logout-others' && method === 'POST') return json({ ok: true });
+      if (route === '/profile/onboarding' && method === 'PUT') {
+        studentOnly();
+        user.onboarding_dismissed = input.dismissed ? 1 : 0;
         return json({ ok: true });
       }
       const staff = () =>
