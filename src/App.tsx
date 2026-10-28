@@ -87,6 +87,10 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
   return (
     <div className="login-page" id="main-content" tabIndex={-1}>
       <section className="login-story">
+        <picture className="login-story-bg" aria-hidden="true">
+          <source media="(max-width: 700px)" srcSet="/photos/commerce-hero-mobile.webp" />
+          <img src="/photos/commerce-hero.webp" alt="" decoding="async" />
+        </picture>
         <Mark light />
         <div className="login-story-body">
           <span className="login-wordmark" lang="ar">
