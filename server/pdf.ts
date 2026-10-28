@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { ActivityRequest, Faculty } from '../src/types';
 import { browserExecutable } from './browser';
 
-export const FORM_TEMPLATE_VERSION = 3;
+export const FORM_TEMPLATE_VERSION = 4;
 
 interface Snapshot {
   student: { name: string; student_id: string; national_id?: string; year: string };
@@ -48,7 +48,7 @@ export async function renderForm(snapshot: Snapshot) {
     footer{margin-top:28px;border-top:1px solid #dce5f2;padding-top:12px;font-size:9.5px;color:#6b7a90}
   </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="institution"><b>${escape(f.platformName || f.brand)}</b>${f.platformName ? `<i>${escape(f.brand)}</i>` : ""}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
   <h1>استمارة تقديم النشاط الطلابي</h1><p class="muted">${escape(f.period)}</p>
-  <div class="notice${snapshot.demo ? " demo" : ""}">${snapshot.demo ? '<strong>نسخة تجريبية — لا تصلح للاعتماد الرسمي</strong>' : ''}هذه الاستمارة تثبت تقديم الطلب فقط. اعتماد النشاط واحتساب الدرجة يستلزمان مراجعة الموظف المختص.</div>
+  <div class="notice">هذه الاستمارة تثبت تقديم الطلب فقط. اعتماد النشاط واحتساب الدرجة يستلزمان مراجعة الموظف المختص.</div>
   <h2>أولًا: بيانات الطالب</h2><div class="grid">${field('اسم الطالب', student.name)}${student.student_id ? field('الرقم الجامعي', student.student_id) : field('الرقم القومي', student.national_id ?? '')}${field('الفرقة الدراسية', student.year)}${field('الكلية', f.faculty)}</div>
   <h2>ثانيًا: بيانات النشاط</h2><div class="grid">${field('اسم النشاط', r.title)}${field('نوع النشاط', r.category)}${field('الجهة المنظمة', r.organization)}${field('تاريخ النشاط', r.activity_date)}</div>
   <h2>وصف المشاركة</h2><div class="description">${escape(r.description)}</div>
