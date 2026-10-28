@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import facultyFallback from '../config/faculty.json';
 
-const SEEN = 'athar-splash-seen';
+const SEEN = 'athar-splash-at';
+const EVERY_MS = 6 * 60 * 60 * 1000;
 const SHOW_MS = 2400;
 const LEAVE_MS = 800;
 
-/** تُعرض مرة واحدة لكل جلسة تصفح، ولا تُعرض للأتمتة (الاختبارات) إلا بـ ?splash=1. */
+/** تُعرض أول دخول ثم مرة كل ٦ ساعات، ولا تُعرض للأتمتة (الاختبارات) إلا بـ ?splash=1. */
 function shouldShow(): boolean {
   try {
     if (new URLSearchParams(location.search).get('splash') === '1') return true;
     if (navigator.webdriver) return false;
-    return sessionStorage.getItem(SEEN) !== '1';
+    const last = Number(localStorage.getItem(SEEN) || 0);
+    return !last || Date.now() - last > EVERY_MS;
   } catch {
     return true;
   }
@@ -27,7 +29,7 @@ export function Splash() {
   useEffect(() => {
     if (phase === 'off') return;
     try {
-      sessionStorage.setItem(SEEN, '1');
+      if (phase === 'show') localStorage.setItem(SEEN, String(Date.now()));
     } catch {
       /* التخزين غير متاح؛ لا مشكلة */
     }
@@ -54,8 +56,27 @@ export function Splash() {
         <img src="/photos/commerce-hero.webp" alt="" fetchPriority="high" decoding="async" />
       </picture>
       <div className="splash-center">
+        <div className="splash-glow" />
         <div className="splash-logos">
-          <img src="/brand/splash-logos.webp" width="900" height="410" alt="" decoding="async" />
+          <span className="splash-disc splash-disc-a">
+            <img
+              src="/brand/splash-university.webp"
+              width="420"
+              height="420"
+              alt=""
+              decoding="async"
+            />
+          </span>
+          <span className="splash-divider" />
+          <span className="splash-disc splash-disc-b">
+            <img
+              src="/brand/splash-college.webp"
+              width="420"
+              height="420"
+              alt=""
+              decoding="async"
+            />
+          </span>
         </div>
         <div className="splash-title" lang="ar">
           {facultyFallback.platformName}
