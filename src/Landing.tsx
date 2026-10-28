@@ -180,7 +180,7 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
                     <Users size={16} />
                     {post.byName ? `${post.byName} · ${post.author}` : post.author}
                   </span>
-                  <span>كلية التجارة</span>
+                  <span>{session.faculty.faculty}</span>
                 </div>
               </div>
             </article>
@@ -295,9 +295,9 @@ export function Landing() {
         <section className="px-hero" ref={heroRef}>
           <div className="px-hero-bg" aria-hidden="true">
             <picture>
-              <source media="(max-width: 700px)" srcSet="/photos/commerce-hero-mobile.webp" />
+              <source media="(max-width: 700px)" srcSet="/photos/hero-mobile.webp" />
               <img
-                src="/photos/commerce-hero.webp"
+                src="/photos/hero.webp"
                 width="1694"
                 height="928"
                 alt=""
@@ -395,7 +395,7 @@ export function Landing() {
             <ul className="px-promise">
               <li>
                 <Users size={20} />
-                مجتمع واحد يجمع طلاب التجارة
+                مجتمع واحد يجمع طلاب {session.faculty.facultyShort}
               </li>
               <li>
                 <FileText size={20} />
@@ -526,7 +526,7 @@ export function Landing() {
                 src={logoSrc(session.faculty.logoPath)}
                 width="2001"
                 height="786"
-                alt="شعارا جامعة قناة السويس وكلية التجارة"
+                alt={`شعارا ${session.faculty.university} و${session.faculty.faculty}`}
                 decoding="async"
               />
             </span>

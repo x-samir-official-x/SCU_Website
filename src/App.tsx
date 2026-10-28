@@ -86,8 +86,8 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
     <div className="login-page" id="main-content" tabIndex={-1}>
       <section className="login-story">
         <picture className="login-story-bg" aria-hidden="true">
-          <source media="(max-width: 700px)" srcSet="/photos/commerce-hero-mobile.webp" />
-          <img src="/photos/commerce-hero.webp" alt="" decoding="async" />
+          <source media="(max-width: 700px)" srcSet="/photos/hero-mobile.webp" />
+          <img src="/photos/hero.webp" alt="" decoding="async" />
         </picture>
         <Mark light />
         <div className="login-story-body">
@@ -100,14 +100,14 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             الطلابي
           </h1>
           <p>
-            خدمات النشاط الطلابي بكلية التجارة.
+            خدمات النشاط الطلابي بـ{session.faculty.faculty}.
             <br />
             من تسجيل المشاركة إلى مراجعتها واعتمادها، في مكان واحد.
           </p>
           <LoginProcess />
         </div>
         <div className="login-story-footer">
-          <span>كلية التجارة</span>
+          <span>{session.faculty.faculty}</span>
           <span>تسجيل · متابعة · اعتماد</span>
         </div>
       </section>
@@ -207,7 +207,9 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             </p>
           )}
         </div>
-        <footer className="login-copyright">كلية التجارة — جامعة قناة السويس</footer>
+        <footer className="login-copyright">
+          {session.faculty.faculty} — {session.faculty.university}
+        </footer>
       </section>
     </div>
   );
@@ -467,7 +469,7 @@ function Shell() {
                   <>
                     <div className="page-heading">
                       <div>
-                        <span className="section-kicker">مجتمع كلية التجارة</span>
+                        <span className="section-kicker">مجتمع {session.faculty.faculty}</span>
                         <h1>أنشطة الطلاب</h1>
                         <p>
                           مشاركات الطلاب المنشورة بموافقتهم وبدون أسمائهم، وتُكمَّل بنماذج توضيحية
