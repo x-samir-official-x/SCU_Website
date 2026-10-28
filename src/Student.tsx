@@ -87,6 +87,7 @@ export function StudentDashboard() {
   if (error) return <ErrorPanel message={error} retry={reload} />;
   const r = data?.request;
   const approved = r?.status === 'approved';
+  const closed = r ? ['rejected', 'cancelled'].includes(r.status) : false;
   const editable = !r || ['draft', 'revision'].includes(r.status);
   return (
     <>
@@ -115,16 +116,20 @@ export function StudentDashboard() {
           <h2>
             {approved
               ? 'تم اعتماد نشاطك الجامعي.'
-              : r?.status === 'revision'
-                ? 'خطوة لاستكمال طلبك.'
-                : 'نشاطك الجامعي، بخطوات واضحة.'}
+              : closed
+                ? 'لم يُعتمد طلبك هذه المرة.'
+                : r?.status === 'revision'
+                  ? 'خطوة لاستكمال طلبك.'
+                  : 'نشاطك الجامعي، بخطوات واضحة.'}
           </h2>
           <p>
             {approved
               ? 'اكتمل استحقاق النشاط وأُضيفت ٤٠ درجة إلى سجلك.'
-              : r?.status === 'pending'
-                ? 'طلبك بانتظار المراجعة. نزّل الاستمارة وقدّمها إلى المكتب المختص.'
-                : 'قدّم بيانات مشاركتك ومستنداتها، واستخرج الاستمارة، ثم تابع المراجعة والاعتماد.'}
+              : closed
+                ? 'راجع ملاحظة الموظف في صفحة «نشاطي»، أو تواصل مع المكتب المختص لمعرفة الخطوة التالية.'
+                : r?.status === 'pending'
+                  ? 'طلبك بانتظار المراجعة. نزّل الاستمارة وقدّمها إلى المكتب المختص.'
+                  : 'قدّم بيانات مشاركتك ومستنداتها، واستخرج الاستمارة، ثم تابع المراجعة والاعتماد.'}
           </p>
           <div className="hero-actions">
             <Link to="/activity" className="button hero-button">
@@ -172,7 +177,7 @@ export function StudentDashboard() {
               </bdi>
             </>
           }
-          detail={approved ? 'تم استيفاء النشاط' : 'تُضاف بعد مراجعة الموظف'}
+          detail={approved ? 'تم استيفاء النشاط' : closed ? 'لم تُضف درجة' : 'تُضاف بعد مراجعة الموظف'}
           tone="blue"
         />
       </section>
@@ -252,15 +257,27 @@ export function StudentDashboard() {
             </div>
           </div>
           <ProgressRing approved={approved} large />
-          <h3>{approved ? 'اكتمل استحقاق النشاط' : 'في انتظار اعتماد النشاط'}</h3>
+          <h3>
+            {approved
+              ? 'اكتمل استحقاق النشاط'
+              : closed
+                ? 'لم يُعتمد النشاط'
+                : 'في انتظار اعتماد النشاط'}
+          </h3>
           <p>
             {approved
               ? 'تم اعتماد نشاطك وإضافة ٤٠ درجة كاملة.'
-              : 'تكتمل الدرجة بعد تسليم الاستمارة ومراجعة النشاط واعتماده.'}
+              : closed
+                ? 'لم تُضف درجة. راجع ملاحظة الموظف أو تواصل مع المكتب المختص.'
+                : 'تكتمل الدرجة بعد تسليم الاستمارة ومراجعة النشاط واعتماده.'}
           </p>
           <span className={`achievement-note ${approved ? 'done' : ''}`}>
             <CheckCircle2 size={15} />
-            {approved ? 'تم اعتماد النشاط' : '٤٠ درجة للنشاط المعتمد'}
+            {approved
+              ? 'تم اعتماد النشاط'
+              : closed
+                ? 'تواصل مع المكتب المختص'
+                : '٤٠ درجة للنشاط المعتمد'}
           </span>
         </section>
       </div>

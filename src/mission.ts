@@ -78,7 +78,7 @@ export function missionSteps(
     {
       id: 'deliver',
       title: 'نزّل الاستمارة واطبعها وسلّمها للمكتب',
-      state: approved ? 'done' : submitted && !revision ? 'current' : 'todo',
+      state: approved || closed ? 'done' : submitted && !revision ? 'current' : 'todo',
       to: '/documents',
       cta: 'نزّل الاستمارة',
       tips: [
