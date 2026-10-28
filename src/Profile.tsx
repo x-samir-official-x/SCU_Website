@@ -25,6 +25,7 @@ import {
   useToast,
 } from './lib';
 import { MissionCard } from './MissionCard';
+import { EmailVerifyBanner } from './EmailVerifyBanner';
 import { YEARS } from './registration';
 import { TERMS } from './terms';
 import type { ActivityRequest, Status } from './types';
@@ -154,6 +155,7 @@ export function ProfilePage() {
         </div>
       </div>
 
+      <EmailVerifyBanner />
       <section className="card profile-hero">
         <div className="profile-photo">
           <Avatar
@@ -238,7 +240,14 @@ export function ProfilePage() {
               <dt>
                 <Mail size={14} aria-hidden="true" /> البريد الإلكتروني
               </dt>
-              <dd dir="ltr">{profile.email}</dd>
+              <dd>
+                <bdi dir="ltr">{profile.email}</bdi>
+                {session.emailEnabled && (
+                  <span className={`mail-state ${session.user?.email_verified ? 'is-ok' : ''}`}>
+                    {session.user?.email_verified ? 'مؤكد' : 'غير مؤكد'}
+                  </span>
+                )}
+              </dd>
             </div>
             <div>
               <dt>الرقم الجامعي / القومي</dt>
@@ -383,6 +392,31 @@ export function ProfilePage() {
               {busy === 'pw' ? 'جارٍ الحفظ…' : 'تغيير كلمة المرور'}
             </button>
           </form>
+          {session.emailEnabled && (
+            <label className="profile-toggle">
+              <input
+                type="checkbox"
+                checked={Boolean(session.user?.email_notifications)}
+                disabled={!session.user?.email_verified || busy === 'mailpref'}
+                onChange={(e) =>
+                  run(
+                    'mailpref',
+                    () =>
+                      send('/profile/email-notifications', 'PUT', { enabled: e.target.checked }),
+                    e.target.checked ? 'سنرسل الإشعارات إلى بريدك.' : 'تم إيقاف رسائل البريد.',
+                  )
+                }
+              />
+              <span>
+                أرسل لي إشعارًا على بريدي الإلكتروني
+                <small className="field-hint">
+                  {session.user?.email_verified
+                    ? 'رسالة عامة تنبهك بوجود جديد، بدون تفاصيل طلبك.'
+                    : 'أكّد بريدك أولًا لتفعيل هذا الخيار.'}
+                </small>
+              </span>
+            </label>
+          )}
           <h3 className="profile-sub">تغيير البريد الإلكتروني</h3>
           <form className="profile-form" onSubmit={changeEmail}>
             <label>

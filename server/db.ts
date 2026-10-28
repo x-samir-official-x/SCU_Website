@@ -71,6 +71,17 @@ export function openDatabase(dataDir: string, demo: boolean) {
     title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', link TEXT,
     created_at TEXT NOT NULL, read_at TEXT
   ); CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id,id);`);
+  addColumn('users', 'email_verified_at', 'email_verified_at TEXT');
+  addColumn('users', 'email_notifications', 'email_notifications INTEGER NOT NULL DEFAULT 1');
+  db.exec(`CREATE TABLE IF NOT EXISTS email_tokens (
+    token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+    email TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS email_outbox (
+    id INTEGER PRIMARY KEY, kind TEXT NOT NULL, to_addr TEXT NOT NULL, subject TEXT NOT NULL,
+    text TEXT NOT NULL, html TEXT NOT NULL, created_at INTEGER NOT NULL,
+    sent_at INTEGER, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0, last_error TEXT
+  ); CREATE INDEX IF NOT EXISTS email_outbox_pending ON email_outbox(sent_at,next_at);`);
   addColumn('users', 'onboarding_dismissed', 'onboarding_dismissed INTEGER NOT NULL DEFAULT 0');
   addColumn('requests', 'gallery_show_name', 'gallery_show_name INTEGER NOT NULL DEFAULT 0');
   addColumn('attachments', 'kind', "kind TEXT NOT NULL DEFAULT 'document'");
@@ -88,12 +99,13 @@ export function openDatabase(dataDir: string, demo: boolean) {
     if (process.env.ADMIN_PASSWORD.length < 12)
       throw new Error('ADMIN_PASSWORD must have at least 12 characters.');
     db.prepare(
-      'INSERT INTO users (name,email,password_hash,role,created_at) VALUES (?,?,?,?,?)',
+      'INSERT INTO users (name,email,password_hash,role,created_at,email_verified_at) VALUES (?,?,?,?,?,?)',
     ).run(
       'المسؤول الرئيسي',
       process.env.ADMIN_EMAIL.trim().toLowerCase(),
       hashPassword(process.env.ADMIN_PASSWORD),
       'admin',
+      now(),
       now(),
     );
   }

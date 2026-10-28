@@ -35,6 +35,7 @@ import {
 import type { Role, Session } from './types';
 import { StudentDashboard, ActivityPage, DocumentsPage } from './Student';
 import { ProfilePage } from './Profile';
+import { VerifyEmailPage } from './VerifyEmail';
 import { Avatar } from './Avatar';
 import { NotificationBell } from './NotificationBell';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
@@ -586,6 +587,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/welcome" element={<Landing />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route
             path="/login"
             element={

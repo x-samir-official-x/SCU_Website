@@ -11,6 +11,8 @@ export interface User {
   onboarding_dismissed?: number;
   phone?: string | null;
   avatar_v?: number;
+  email_verified?: number;
+  email_notifications?: number;
 }
 export interface Faculty {
   platformName: string;
@@ -31,6 +33,7 @@ export interface Session {
   demo: boolean;
   preview?: boolean;
   registration?: boolean;
+  emailEnabled?: boolean;
   faculty: Faculty;
 }
 export interface Attachment {

@@ -11,6 +11,7 @@ import { openDatabase, faculty, hashPassword, now } from './db';
 import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
 import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
+import { mailerFromEnv, renderEmail, type Mailer } from './mailer';
 import { checkCertificate } from '../src/certificate';
 import { validateRegistration, validatePhone, YEARS } from '../src/registration';
 import { normalizeDigits } from '../src/terms';
@@ -61,7 +62,12 @@ const submittedSchema = draftSchema.extend({
 });
 
 export function createApp(
-  options: { dataDir?: string; demo?: boolean; registrationOpen?: boolean } = {},
+  options: {
+    dataDir?: string;
+    demo?: boolean;
+    registrationOpen?: boolean;
+    mailer?: Mailer | null;
+  } = {},
 ) {
   const demo = options.demo ?? process.env.DEMO_MODE === 'true';
   const dataDir = path.resolve(options.dataDir ?? process.env.DATA_DIR ?? path.join(root, '.data'));
@@ -72,6 +78,12 @@ export function createApp(
   mkdirSync(formDir, { recursive: true, mode: 0o700 });
   // التسجيل العام مقفول افتراضيًا حتى يُعتمد التحقق الجامعي. للتفعيل: REGISTRATION_OPEN=true
   const registrationOpen = options.registrationOpen ?? process.env.REGISTRATION_OPEN === 'true';
+  const mailer = options.mailer === undefined ? mailerFromEnv() : options.mailer;
+  const siteOrigin = (
+    process.env.APP_ORIGIN || `http://localhost:${process.env.PORT || 3001}`
+  ).replace(/\/+$/, '');
+  if (mailer && !process.env.APP_ORIGIN && process.env.NODE_ENV === 'production')
+    console.warn('APP_ORIGIN غير مضبوط: روابط الرسائل ستشير إلى localhost.');
   const app = express();
   app.disable('x-powered-by');
   const pendingForms = new Map<string, Promise<void>>();
@@ -106,7 +118,7 @@ export function createApp(
     if (cookie && /^[a-f0-9]{64}$/.test(cookie)) {
       const session = db
         .prepare(
-          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed,u.phone,u.avatar_v FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
+          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed,u.phone,u.avatar_v,(u.email_verified_at IS NOT NULL) AS email_verified,u.email_notifications FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
         )
         .get(hash(cookie), Date.now());
       if (session) {
@@ -158,6 +170,7 @@ export function createApp(
     db.prepare(
       'DELETE FROM notifications WHERE user_id=? AND id NOT IN (SELECT id FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 100)',
     ).run(userId, userId);
+    emailNotification(userId);
   };
   const notifyStaff = (title: string, body: string, link: string) => {
     const staff = db
@@ -165,6 +178,134 @@ export function createApp(
       .all() as { id: number }[];
     for (const u of staff) notify(u.id, title, body, link);
   };
+  // ===== البريد الإلكتروني (اختياري؛ معطّل حتى تُضبط إعدادات SMTP) =====
+  const platform = faculty.platformName || faculty.brand;
+  const enqueueEmail = (
+    kind: string,
+    to: string,
+    subject: string,
+    body: { text: string; html: string },
+  ) => {
+    if (!mailer) return;
+    db.prepare(
+      'INSERT INTO email_outbox (kind,to_addr,subject,text,html,created_at) VALUES (?,?,?,?,?,?)',
+    ).run(kind, to, subject, body.text, body.html, Date.now());
+    setImmediate(() => void flushMail());
+  };
+  let flushing = false;
+  /** يرسل الرسائل المعلقة بالترتيب، وتُعاد المحاولة عند الفشل (حتى ٥ مرات بفواصل متزايدة). */
+  async function flushMail() {
+    if (!mailer || flushing) return;
+    flushing = true;
+    try {
+      const rows = db
+        .prepare(
+          'SELECT id,to_addr,subject,text,html,attempts FROM email_outbox WHERE sent_at IS NULL AND attempts<5 AND next_at<=? ORDER BY id LIMIT 20',
+        )
+        .all(Date.now()) as {
+        id: number;
+        to_addr: string;
+        subject: string;
+        text: string;
+        html: string;
+        attempts: number;
+      }[];
+      for (const m of rows) {
+        try {
+          await mailer.transport.sendMail({
+            from: mailer.from,
+            to: m.to_addr,
+            subject: m.subject,
+            text: m.text,
+            html: m.html,
+          });
+          db.prepare('UPDATE email_outbox SET sent_at=?,last_error=NULL WHERE id=?').run(
+            Date.now(),
+            m.id,
+          );
+        } catch (error) {
+          const delay = [60, 300, 900, 3600, 3600][m.attempts] * 1000;
+          db.prepare(
+            'UPDATE email_outbox SET attempts=attempts+1,next_at=?,last_error=? WHERE id=?',
+          ).run(Date.now() + delay, String((error as Error).message).slice(0, 300), m.id);
+          console.error('تعذر إرسال بريد', m.id, (error as Error).message);
+        }
+      }
+      // لا نحتفظ بنصوص الرسائل المرسلة أكثر من أسبوع
+      db.prepare('DELETE FROM email_outbox WHERE sent_at IS NOT NULL AND sent_at<?').run(
+        Date.now() - 7 * 24 * 3600 * 1000,
+      );
+    } catch (error) {
+      console.error('Mail flush failed', (error as Error).message);
+    } finally {
+      flushing = false;
+    }
+  }
+  if (mailer) setInterval(() => void flushMail(), 30_000).unref();
+  /** رابط تأكيد البريد (صالح ٢٤ ساعة). يلغي أي رابط سابق لنفس الحساب. */
+  function sendVerification(userId: number) {
+    if (!mailer) return;
+    const u = db.prepare('SELECT name,email FROM users WHERE id=?').get(userId) as
+      { name: string; email: string } | undefined;
+    if (!u) return;
+    const token = randomBytes(32).toString('hex');
+    db.prepare('DELETE FROM email_tokens WHERE user_id=?').run(userId);
+    db.prepare('INSERT INTO email_tokens VALUES (?,?,?,?,?)').run(
+      hash(token),
+      userId,
+      u.email,
+      Date.now() + 24 * 3600 * 1000,
+      Date.now(),
+    );
+    enqueueEmail(
+      'verify',
+      u.email,
+      `أكّد بريدك الإلكتروني في ${platform}`,
+      renderEmail({
+        platform,
+        heading: `أهلًا ${u.name.split(' ')[0]}`,
+        lines: [`اضغط الزر التالي لتأكيد بريدك الإلكتروني في «${platform}». الرابط صالح ٢٤ ساعة.`],
+        button: { label: 'تأكيد البريد', url: `${siteOrigin}/verify-email?token=${token}` },
+        footer: 'إذا لم تطلب هذه الرسالة فتجاهلها ولن يحدث أي شيء.',
+      }),
+    );
+  }
+  /** بريد إشعار عام (بدون تفاصيل الطلب) لمن أكّد بريده ولم يوقف الرسائل. بريد واحد كل ٥ دقائق للحساب. */
+  function emailNotification(userId: number) {
+    if (!mailer) return;
+    const u = db
+      .prepare('SELECT email,email_verified_at,email_notifications,active FROM users WHERE id=?')
+      .get(userId) as
+      | {
+          email: string;
+          email_verified_at: string | null;
+          email_notifications: number;
+          active: number;
+        }
+      | undefined;
+    if (!u || !u.active || !u.email_verified_at || !u.email_notifications) return;
+    const recent = db
+      .prepare(
+        "SELECT 1 AS x FROM email_outbox WHERE kind='notification' AND to_addr=? AND created_at>?",
+      )
+      .get(u.email, Date.now() - 5 * 60 * 1000);
+    if (recent) return;
+    enqueueEmail(
+      'notification',
+      u.email,
+      `إشعار جديد في ${platform}`,
+      renderEmail({
+        platform,
+        heading: 'عندك إشعار جديد',
+        lines: [
+          `يوجد إشعار جديد في حسابك على «${platform}». افتح الموقع للاطلاع عليه.`,
+          'لا نرسل تفاصيل الطلب أو ملاحظات المراجعة بالبريد حفاظًا على خصوصيتك.',
+        ],
+        button: { label: 'فتح الموقع', url: `${siteOrigin}/dashboard` },
+        footer: 'يمكنك إيقاف رسائل البريد من «ملفي الشخصي».',
+      }),
+    );
+  }
   const transaction = <T>(fn: () => T): T => {
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -246,6 +387,7 @@ export function createApp(
       demo,
       faculty,
       registration: registrationOpen,
+      emailEnabled: Boolean(mailer),
     }),
   );
   app.get('/api/demo-accounts', (_req, res) => {
@@ -335,6 +477,7 @@ export function createApp(
           now(),
           v.phone,
         );
+      sendVerification(Number(result.lastInsertRowid));
       startSession(res, Number(result.lastInsertRowid));
       res.status(201).json({ ok: true });
     },
@@ -469,6 +612,72 @@ export function createApp(
     const input = z.object({ dismissed: z.boolean() }).parse(req.body);
     db.prepare('UPDATE users SET onboarding_dismissed=? WHERE id=?').run(
       input.dismissed ? 1 : 0,
+      user.id,
+    );
+    res.json({ ok: true });
+  });
+  // ===== تأكيد البريد وإيقاف رسائل الإشعارات =====
+  app.post(
+    '/api/verify-email',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 30,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const { token } = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.body);
+      const row = db
+        .prepare('SELECT user_id,email,expires_at FROM email_tokens WHERE token_hash=?')
+        .get(hash(token)) as { user_id: number; email: string; expires_at: number } | undefined;
+      assert(
+        row && row.expires_at > Date.now(),
+        400,
+        'رابط التأكيد غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا من حسابك.',
+      );
+      const user = db.prepare('SELECT email FROM users WHERE id=?').get(row.user_id) as
+        { email: string } | undefined;
+      assert(
+        user && user.email.toLowerCase() === row.email.toLowerCase(),
+        400,
+        'رابط التأكيد لا يخص بريدك الحالي. اطلب رابطًا جديدًا.',
+      );
+      db.prepare('UPDATE users SET email_verified_at=? WHERE id=?').run(now(), row.user_id);
+      db.prepare('DELETE FROM email_tokens WHERE user_id=?').run(row.user_id);
+      res.json({ ok: true });
+    },
+  );
+  app.post(
+    '/api/profile/resend-verification',
+    auth,
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 5,
+      message: { error: 'تم إرسال عدة روابط. انتظر قليلًا ثم حاول مرة أخرى.' },
+    }),
+    (_req, res) => {
+      const user: User = res.locals.user;
+      assert(mailer, 404, 'إرسال البريد غير مفعّل على هذا الخادم.');
+      const row = db.prepare('SELECT email_verified_at FROM users WHERE id=?').get(user.id) as {
+        email_verified_at: string | null;
+      };
+      assert(!row.email_verified_at, 409, 'بريدك مؤكد بالفعل.');
+      const last = db
+        .prepare('SELECT created_at FROM email_tokens WHERE user_id=?')
+        .get(user.id) as { created_at: number } | undefined;
+      assert(
+        !last || Date.now() - last.created_at > 60_000,
+        429,
+        'أُرسل رابط للتو. انتظر دقيقة ثم أعد المحاولة.',
+      );
+      sendVerification(user.id);
+      res.json({ ok: true });
+    },
+  );
+  app.put('/api/profile/email-notifications', auth, (req, res) => {
+    const user: User = res.locals.user;
+    const input = z.object({ enabled: z.boolean() }).parse(req.body);
+    db.prepare('UPDATE users SET email_notifications=? WHERE id=?').run(
+      input.enabled ? 1 : 0,
       user.id,
     );
     res.json({ ok: true });
@@ -810,7 +1019,8 @@ export function createApp(
         409,
         'هذا البريد مستخدم في حساب آخر.',
       );
-      db.prepare('UPDATE users SET email=? WHERE id=?').run(email, user.id);
+      db.prepare('UPDATE users SET email=?,email_verified_at=NULL WHERE id=?').run(email, user.id);
+      sendVerification(user.id);
       res.json({ ok: true });
     },
   );
@@ -1147,8 +1357,17 @@ export function createApp(
       'البريد الإلكتروني مسجل بالفعل.',
     );
     const result = db
-      .prepare('INSERT INTO users (name,email,password_hash,role,created_at) VALUES (?,?,?,?,?)')
-      .run(data.name, data.email.toLowerCase(), hashPassword(data.password), data.role, now());
+      .prepare(
+        'INSERT INTO users (name,email,password_hash,role,created_at,email_verified_at) VALUES (?,?,?,?,?,?)',
+      )
+      .run(
+        data.name,
+        data.email.toLowerCase(),
+        hashPassword(data.password),
+        data.role,
+        now(),
+        now(),
+      );
     log(res.locals.user.id, null, 'staff_created', `تم إنشاء الحساب رقم ${result.lastInsertRowid}`);
     res.status(201).json({ ok: true });
   });
@@ -1202,7 +1421,7 @@ export function createApp(
     console.error('Request failed:', error instanceof Error ? error.message : 'unknown error');
     res.status(500).json({ error: 'تعذر إتمام العملية. يرجى المحاولة لاحقًا.' });
   });
-  return { app, db };
+  return { app, db, flushMail };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

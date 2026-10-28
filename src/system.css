@@ -1480,3 +1480,75 @@ tbody tr:hover .avatar {
   text-align: center;
   color: var(--c-ink-2, #445774);
 }
+
+/* ===== تأكيد البريد ===== */
+.verify-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid #f0d9a4;
+  background: #fff8e6;
+  color: #6b4b0a;
+}
+.verify-banner > div {
+  flex: 1;
+  min-width: 220px;
+}
+.verify-banner p {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.mail-state {
+  margin-inline-start: 8px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  background: #fff1d6;
+  color: #8a5a00;
+}
+.mail-state.is-ok {
+  background: #e3f5e8;
+  color: #177a3c;
+}
+.profile-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.profile-toggle input {
+  margin-top: 5px;
+}
+.profile-toggle small {
+  display: block;
+}
+.verify-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.verify-card {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  padding: 32px 24px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.verify-card h1 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.verify-ok {
+  color: #177a3c;
+}
+.verify-fail {
+  color: #b7791f;
+}

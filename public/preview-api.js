@@ -238,6 +238,7 @@ async function handle(request, url) {
           demo: true,
           preview: true,
           registration: true,
+          emailEnabled: false,
           faculty,
         });
       if (route === '/gallery' && method === 'GET') {
@@ -467,7 +468,10 @@ async function handle(request, url) {
         fail(user.id === Number(avatarMatch[1]) || user.role !== 'student', 403, 'غير مسموح.');
         fail(owner && owner.avatar_blob, 404, 'لا توجد صورة.');
         return new Response(owner.avatar_blob, {
-          headers: { 'Content-Type': owner.avatar_blob.type, 'Cache-Control': 'private, max-age=3600' },
+          headers: {
+            'Content-Type': owner.avatar_blob.type,
+            'Cache-Control': 'private, max-age=3600',
+          },
         });
       }
       if (route === '/profile/phone' && method === 'PUT') {
