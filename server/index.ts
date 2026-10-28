@@ -13,7 +13,12 @@ import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
 import { mailerFromEnv, renderEmail, inlineAttachments, type Mailer } from './mailer';
 import { checkCertificate } from '../src/certificate';
-import { validateRegistration, validatePhone, YEARS } from '../src/registration';
+import {
+  weakPasswordReason,
+  validateRegistration,
+  validatePhone,
+  YEARS,
+} from '../src/registration';
 import { normalizeDigits } from '../src/terms';
 import type { ActivityRequest, Role, User } from '../src/types';
 
@@ -86,6 +91,21 @@ export function createApp(
     console.warn('APP_ORIGIN غير مضبوط: روابط الرسائل ستشير إلى localhost.');
   const app = express();
   app.disable('x-powered-by');
+  // خلف وسيط عكسي (Nginx أو منصة استضافة) يجب ضبط TRUST_PROXY=1 وإلا يرى الحد كل الزوار كعنوان واحد.
+  const trustProxy = process.env.TRUST_PROXY;
+  if (trustProxy)
+    app.set(
+      'trust proxy',
+      trustProxy === 'true'
+        ? 1
+        : Number.isNaN(Number(trustProxy))
+          ? trustProxy
+          : Number(trustProxy),
+    );
+  // الكوكي Secure افتراضيًا في الإنتاج؛ للتجربة على http فقط: COOKIE_SECURE=false.
+  const secureCookie = process.env.COOKIE_SECURE
+    ? process.env.COOKIE_SECURE === 'true'
+    : process.env.NODE_ENV === 'production';
   const pendingForms = new Map<string, Promise<void>>();
   app.use(
     helmet({
@@ -98,13 +118,28 @@ export function createApp(
           imgSrc: ["'self'", 'data:', 'blob:'],
           connectSrc: ["'self'"],
           objectSrc: ["'none'"],
-          upgradeInsecureRequests: process.env.COOKIE_SECURE === 'true' ? [] : null,
+          upgradeInsecureRequests: secureCookie ? [] : null,
         },
       },
       crossOriginEmbedderPolicy: false,
     }),
   );
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    next();
+  });
   app.use(express.json({ limit: '64kb' }));
+  // سقف عام لكل عنوان قبل أي مسار (يحمي من الإغراق الخفيف؛ الحدود الأدق على المسارات الحساسة).
+  app.use(
+    '/api',
+    rateLimit({
+      windowMs: 60 * 1000,
+      limit: 600,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+      message: { error: 'طلبات كثيرة. يرجى المحاولة بعد قليل.' },
+    }),
+  );
   app.use('/api', (_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     next();
@@ -478,7 +513,7 @@ export function createApp(
     res.cookie('activity_session', token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.COOKIE_SECURE === 'true',
+      secure: secureCookie,
       maxAge: 12 * 60 * 60 * 1000,
       path: '/',
     });
@@ -491,6 +526,21 @@ export function createApp(
       standardHeaders: 'draft-8',
       legacyHeaders: false,
       message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    // حد لكل حساب: يوقف تخمين كلمة مرور حساب بعينه من عناوين متعددة (الناجح لا يُحتسب).
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 10,
+      skipSuccessfulRequests: true,
+      standardHeaders: false,
+      legacyHeaders: false,
+      keyGenerator: (req) =>
+        `login:${String((req.body as { email?: unknown } | undefined)?.email ?? '')
+          .trim()
+          .toLowerCase()
+          .slice(0, 180)}`,
+      validate: { keyGeneratorIpFallback: false },
+      message: { error: 'محاولات كثيرة على هذا الحساب. يرجى المحاولة بعد ١٥ دقيقة.' },
     }),
     (req, res) => {
       const input = credentials.parse(req.body);
@@ -651,6 +701,8 @@ export function createApp(
         'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.',
       );
       assert(input.password !== input.current, 400, 'اختر كلمة مرور مختلفة عن الحالية.');
+      const weakChange = weakPasswordReason(input.password, user.email);
+      assert(!weakChange, 400, weakChange ?? '');
       db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(
         hashPassword(input.password),
         user.id,
@@ -730,9 +782,11 @@ export function createApp(
         400,
         'رابط الاستعادة غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.',
       );
-      const active = db.prepare('SELECT active FROM users WHERE id=?').get(row.user_id) as
-        { active: number } | undefined;
+      const active = db.prepare('SELECT active,email FROM users WHERE id=?').get(row.user_id) as
+        { active: number; email: string } | undefined;
       assert(active?.active === 1, 400, 'رابط الاستعادة غير صالح.');
+      const weakReset = weakPasswordReason(input.password, active.email);
+      assert(!weakReset, 400, weakReset ?? '');
       transaction(() => {
         db.prepare(
           'UPDATE users SET password_hash=?,email_verified_at=COALESCE(email_verified_at,?) WHERE id=?',

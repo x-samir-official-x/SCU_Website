@@ -27,6 +27,50 @@ export function validatePhone(
   return { ok: true, value: v };
 }
 
+const COMMON_PASSWORDS = new Set([
+  '12345678',
+  '123456789',
+  '1234567890',
+  '11111111',
+  '00000000',
+  '87654321',
+  '12341234',
+  'password',
+  'password1',
+  'password123',
+  'passw0rd',
+  'qwertyui',
+  'qwerty123',
+  'qwertyuiop',
+  'abcd1234',
+  'abc12345',
+  'iloveyou',
+  'admin123',
+  'admin1234',
+  'welcome1',
+  'letmein1',
+  'student123',
+  'suez2026',
+  'suezcanal',
+  'commerce123',
+  '01234567',
+  '0123456789',
+]);
+/** يرجع سبب رفض كلمة المرور الضعيفة، أو null لو مقبولة. (الطول يُفحص بشكل منفصل.) */
+export function weakPasswordReason(password: string, ...personal: (string | null | undefined)[]) {
+  const lower = password.toLowerCase();
+  if (COMMON_PASSWORDS.has(lower) || /^(.)\1+$/.test(password))
+    return 'كلمة المرور شائعة وسهلة التخمين. اختر كلمة أطول وأقل توقعًا.';
+  for (const item of personal) {
+    const part = String(item ?? '')
+      .split('@')[0]
+      .toLowerCase();
+    if (part.length >= 4 && lower.includes(part))
+      return 'لا تضع بريدك أو رقمك الجامعي داخل كلمة المرور.';
+  }
+  return null;
+}
+
 /**
  * قواعد إنشاء حساب الطالب (واحدة للخادم ولاختباراتها):
  * - الرقم الجامعي أو الرقم القومي: يكفي واحد منهما، ويجوز الاثنان.
@@ -52,6 +96,8 @@ export function validateRegistration(
     return fail('الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
   if (nationalId && !/^[0-9]{14}$/.test(nationalId)) return fail('الرقم القومي ١٤ رقمًا.');
   if (password.length < 8 || password.length > 100) return fail('كلمة المرور من ٨ إلى ١٠٠ حرف.');
+  const weak = weakPasswordReason(password, email, studentId, nationalId);
+  if (weak) return fail(weak);
   const phone = validatePhone(input.phone);
   if (!phone.ok) return fail(phone.error);
   if (!YEARS.includes(String(input.year))) return fail('اختر الفرقة الدراسية.');
