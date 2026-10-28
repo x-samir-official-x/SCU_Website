@@ -111,7 +111,7 @@ export function StudentDashboard() {
         <div className="hero-content">
           <span className="hero-label">
             <ShieldCheck size={16} aria-hidden="true" />
-            بوابة النشاط الطلابي · كلية التجارة
+            {session.faculty.brand} · {session.faculty.faculty}
           </span>
           <h2>
             {approved
@@ -177,7 +177,9 @@ export function StudentDashboard() {
               </bdi>
             </>
           }
-          detail={approved ? 'تم استيفاء النشاط' : closed ? 'لم تُضف درجة' : 'تُضاف بعد مراجعة الموظف'}
+          detail={
+            approved ? 'تم استيفاء النشاط' : closed ? 'لم تُضف درجة' : 'تُضاف بعد مراجعة الموظف'
+          }
           tone="blue"
         />
       </section>

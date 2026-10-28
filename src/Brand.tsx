@@ -10,7 +10,7 @@ export function BrandMark({ light = false }: { light?: boolean }) {
           src={logoSrc(session.faculty.logoPath)}
           width="2001"
           height="786"
-          alt="شعار جامعة قناة السويس وشعار كلية التجارة"
+          alt={`شعار ${session.faculty.university} وشعار ${session.faculty.faculty}`}
           fetchPriority="high"
         />
       </div>
@@ -30,7 +30,7 @@ export function AcademicSeal() {
         src={logoSrc(session.faculty.logoPath)}
         width="2001"
         height="786"
-        alt="جامعة قناة السويس — كلية التجارة"
+        alt={`${session.faculty.university} — ${session.faculty.faculty}`}
       />
       <div className="seal-divider" />
       <strong>{session.faculty.faculty}</strong>

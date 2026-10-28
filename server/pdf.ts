@@ -26,7 +26,7 @@ export async function renderForm(snapshot: Snapshot) {
     'base64',
   );
   const identities = readFileSync(
-    new URL('../public/brand/scu-commerce-identities.png', import.meta.url),
+    new URL(`../public${f.logoPath}`, import.meta.url),
   ).toString('base64');
   const field = (label: string, value: string) =>
     `<div class="field"><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`;

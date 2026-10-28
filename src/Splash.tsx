@@ -43,8 +43,8 @@ export function Splash() {
   return (
     <div className={`splash splash-${phase}`} aria-hidden="true" data-testid="splash">
       <picture className="splash-bg">
-        <source media="(max-width: 700px)" srcSet="/photos/commerce-hero-mobile.webp" />
-        <img src="/photos/commerce-hero.webp" alt="" fetchPriority="high" decoding="async" />
+        <source media="(max-width: 700px)" srcSet="/photos/hero-mobile.webp" />
+        <img src="/photos/hero.webp" alt="" fetchPriority="high" decoding="async" />
       </picture>
       <div className="splash-center">
         <div className="splash-glow" />

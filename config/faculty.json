@@ -2,6 +2,7 @@
   "platformName": "أَثَر",
   "brand": "بوابة النشاط الطلابي",
   "faculty": "كلية التجارة",
+  "facultyShort": "التجارة",
   "university": "جامعة قناة السويس",
   "period": "العام الجامعي ٢٠٢٦/٢٠٢٧",
   "periodId": "pilot-2026",
@@ -9,5 +10,5 @@
   "points": 40,
   "activityTypes": ["خدمة مجتمعية", "نشاط بيئي", "عمل تطوعي", "مبادرة طلابية", "أخرى"],
   "gallery": { "requireApproval": false, "nameDisplay": "first" },
-  "logoPath": "/brand/scu-commerce-identities.png"
+  "logoPath": "/brand/identities.png"
 }

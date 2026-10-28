@@ -19,6 +19,7 @@ export interface Faculty {
   brand: string;
   logoPath: string;
   faculty: string;
+  facultyShort: string;
   university: string;
   period: string;
   periodId: string;

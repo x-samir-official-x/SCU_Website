@@ -136,7 +136,7 @@ export function StaffDashboard() {
         <div>
           <span className="hero-label">
             <ShieldCheck size={15} />
-            كلية التجارة · جامعة قناة السويس
+            {session.faculty.faculty} · {session.faculty.university}
           </span>
           <h2>إدارة طلبات النشاط الطلابي</h2>
           <p>راجع البيانات، وطابق الاستمارة الورقية، ثم اعتمد النشاط بخطوات موثقة.</p>

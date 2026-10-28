@@ -53,7 +53,7 @@ export function FloatingNav({ parallaxRef }: { parallaxRef: React.RefObject<HTML
               src={logoSrc(session.faculty.logoPath)}
               width="2001"
               height="786"
-              alt="شعارا جامعة قناة السويس وكلية التجارة"
+              alt={`شعارا ${session.faculty.university} و${session.faculty.faculty}`}
               fetchPriority="high"
             />
             <span className="fnav-brand-text">
