@@ -530,6 +530,56 @@ export function ReviewPage() {
               <p className="muted small-text">هذا طلب توضيحي ببيانات تجريبية دون مرفقات.</p>
             )}
           </section>
+          {r.gallery?.consent && (
+            <section className="card gallery-staff-card">
+              <div className="card-heading">
+                <div>
+                  <h2>المعرض العام</h2>
+                  <p>
+                    وافق الطالب على نشر صورة النشاط بدون اسمه.{' '}
+                    {r.gallery.published
+                      ? 'الصورة معروضة الآن للزوار.'
+                      : r.gallery.hidden
+                        ? 'تم إخفاؤها من المعرض.'
+                        : 'غير معروضة حاليًا (حسب حالة الطلب).'}{' '}
+                    النشر لا يعني اعتماد النشاط ولا يمنح درجة.
+                  </p>
+                </div>
+              </div>
+              {r.gallery.imageId && (
+                <img
+                  className="gallery-staff-image"
+                  src={`/api/attachments/${r.gallery.imageId}`}
+                  alt="صورة المعرض المقترحة"
+                />
+              )}
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const result = await api<{ request: ActivityRequest }>(
+                      `/staff/requests/${r.id}/gallery-hidden`,
+                      { method: 'POST', body: JSON.stringify({ hidden: !r.gallery!.hidden }) },
+                    );
+                    state.setData(result);
+                    toast(
+                      result.request.gallery?.hidden
+                        ? 'تم إخفاء النشاط من المعرض.'
+                        : 'تم إظهار النشاط في المعرض.',
+                    );
+                  } catch (e) {
+                    toast((e as Error).message, true);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {r.gallery.hidden ? 'إظهار في المعرض' : 'إخفاء من المعرض'}
+              </button>
+            </section>
+          )}
           <section className="card timeline-card">
             <h2>سجل الإجراءات</h2>
             <EventTimeline events={r.events || []} />

@@ -6,7 +6,7 @@ import { browserExecutable } from './browser';
 export const FORM_TEMPLATE_VERSION = 2;
 
 interface Snapshot {
-  student: { name: string; student_id: string; year: string };
+  student: { name: string; student_id: string; national_id?: string; year: string };
   request: ActivityRequest;
   faculty: Faculty;
   submittedAt: string;
@@ -46,7 +46,7 @@ export async function renderForm(snapshot: Snapshot) {
   </style><body><header><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="institution"><strong>جامعة قناة السويس</strong><span>${escape(f.faculty)}</span><span>بوابة النشاط الطلابي</span></div><div class="badge">رقم الطلب: ACT-${r.id.toString().padStart(5, '0')}<br>الإصدار: ${r.version}</div></header>
   <h1>استمارة تقديم النشاط الطلابي</h1><p class="muted">${escape(f.period)}</p>
   <div class="notice">${snapshot.demo ? '<strong>نسخة تجريبية — لا تصلح للاعتماد الرسمي</strong>' : ''}هذه الاستمارة تثبت تقديم الطلب فقط. اعتماد النشاط واحتساب الدرجة يستلزمان مراجعة الموظف المختص.</div>
-  <h2>أولًا: بيانات الطالب</h2><div class="grid">${field('اسم الطالب', student.name)}${field('الرقم الجامعي', student.student_id)}${field('الفرقة الدراسية', student.year)}${field('الكلية', f.faculty)}</div>
+  <h2>أولًا: بيانات الطالب</h2><div class="grid">${field('اسم الطالب', student.name)}${student.student_id ? field('الرقم الجامعي', student.student_id) : field('الرقم القومي', student.national_id ?? '')}${field('الفرقة الدراسية', student.year)}${field('الكلية', f.faculty)}</div>
   <h2>ثانيًا: بيانات النشاط</h2><div class="grid">${field('اسم النشاط', r.title)}${field('نوع النشاط', r.category)}${field('الجهة المنظمة', r.organization)}${field('تاريخ النشاط', r.activity_date)}</div>
   <h2>وصف المشاركة</h2><div class="description">${escape(r.description)}</div>
   <p style="margin-top:14px">أقر بأن البيانات المقدمة صحيحة، وأتحمل مسؤولية المستندات المرفقة بالطلب.</p>

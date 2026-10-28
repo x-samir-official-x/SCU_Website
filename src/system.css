@@ -801,3 +801,162 @@ tbody tr:hover .avatar {
     animation: m-rise 0.8s var(--ease-out) 0.1s backwards;
   }
 }
+
+/* ===== المعرض العام: خيار النشر عند الطالب وبطاقة الموظف ===== */
+.gallery-optin {
+  display: grid;
+  gap: 14px;
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line, rgba(16, 43, 80, 0.12));
+}
+.gallery-consent {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(35, 92, 227, 0.06);
+  border: 1px solid rgba(35, 92, 227, 0.16);
+}
+.gallery-picker {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.gallery-thumb {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.gallery-thumb img,
+.gallery-staff-image {
+  width: min(100%, 360px);
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 43, 80, 0.14);
+}
+.gallery-thumb-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gallery-note {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.gallery-staff-card {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+/* ===== مساعد الاستمارة المحلي ===== */
+.assistant-card {
+  display: grid;
+  gap: 12px;
+  margin-block: 22px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(35, 92, 227, 0.2);
+  background: linear-gradient(160deg, rgba(35, 92, 227, 0.07), rgba(224, 193, 133, 0.1));
+}
+.assistant-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.assistant-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.assistant-head p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #526784;
+}
+.assistant-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #235ce3, #14357a);
+}
+.assistant-card textarea {
+  width: 100%;
+}
+.assistant-card > .button {
+  justify-self: start;
+}
+.assistant-result {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(16, 43, 80, 0.12);
+}
+.assistant-result dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.assistant-result dl > div {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.assistant-result dt {
+  font-size: 12.5px;
+  color: #62748a;
+}
+.assistant-result dd {
+  margin: 0;
+  font-weight: 700;
+}
+.assistant-result [data-missing='true'] dd {
+  font-weight: 400;
+  color: #9a6a12;
+}
+.assistant-notes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: #7a5410;
+}
+.assistant-notes li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.assistant-result > .button {
+  justify-self: start;
+}
+@media (max-width: 560px) {
+  .assistant-result dl > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+.gallery-consent {
+  flex-wrap: nowrap;
+}
+.gallery-consent span {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.gallery-consent input {
+  flex: none;
+  margin-top: 5px;
+}

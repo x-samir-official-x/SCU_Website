@@ -13,6 +13,8 @@ import {
   X,
 } from 'lucide-react';
 import { api, logoSrc, useSession } from './lib';
+import type { GalleryPost } from './types';
+import { TERMS, normalizeDigits } from './terms';
 import { Ambient } from './Ambient';
 import { FloatingNav } from './FloatingNav';
 import { useCountUp, usePointerParallax, useReveal } from './hooks';
@@ -65,15 +67,65 @@ const faqs = [
   ],
   [
     'هل تظهر بياناتي ومستنداتي للزوار؟',
-    'المرفقات والبيانات الشخصية داخل طلبك ليست منشورات عامة. المعرض الحالي يعرض نماذج توضيحية فقط؛ إتاحة مشاركات حقيقية تحتاج موافقة صاحبها ومراجعة المحتوى قبل النشر.',
+    'لا. مرفقاتك وبياناتك الشخصية داخل طلبك لا تظهر لأحد. وإن اخترت نشر صورة نشاطك في المعرض، تظهر الصورة ووصف النشاط فقط بدون اسمك أو رقمك الجامعي، ويمكنك سحب موافقتك في أي وقت. النشر في المعرض لا يعني اعتماد النشاط ولا يمنح أي درجة.',
   ],
 ];
 
+type ShowPost = (typeof posts)[number] & { real?: boolean; byName?: string | null };
+const MIN_CARDS = 3;
 export function ActivityGallery({ full = false }: { full?: boolean }) {
   const [filter, setFilter] = useState('الكل');
   const [selected, setSelected] = useState<string | null>(null);
+  const [realPosts, setRealPosts] = useState<GalleryPost[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
-  const active = posts.find((p) => p.id === selected);
+  const PAGE = 9;
+  useEffect(() => {
+    let current = true;
+    api<{ posts: GalleryPost[]; hasMore: boolean }>(`/gallery?limit=${PAGE}&offset=0`)
+      .then((r) => {
+        if (!current) return;
+        setRealPosts(r.posts);
+        setHasMore(r.hasMore);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, []);
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const r = await api<{ posts: GalleryPost[]; hasMore: boolean }>(
+        `/gallery?limit=${PAGE}&offset=${realPosts.length}`,
+      );
+      setRealPosts((old) => [...old, ...r.posts.filter((p) => !old.some((o) => o.id === p.id))]);
+      setHasMore(r.hasMore);
+    } catch {
+      /* يمكن المحاولة مرة أخرى */
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+  // المنشورات الحقيقية أولًا (بدون اسم الطالب: المصدر هو الجهة/الفريق)، وتُكمَّل النماذج التوضيحية حتى ٣ بطاقات.
+  const shown: ShowPost[] = [
+    ...realPosts.map<ShowPost>((p) => ({
+      id: `real-${p.id}`,
+      category: p.category,
+      title: p.title,
+      text: p.text,
+      image: p.image,
+      alt: `صورة من نشاط: ${p.title}`,
+      author: p.organization,
+      byName: p.author,
+      kind: 'photo',
+      real: true,
+    })),
+    ...posts.slice(0, Math.max(0, MIN_CARDS - realPosts.length)),
+  ];
+  const categories = ['الكل', ...Array.from(new Set(shown.map((p) => p.category)))];
+  const active = shown.find((p) => p.id === selected);
   const navigate = useNavigate();
   const { session } = useSession();
   function open(id: string) {
@@ -87,14 +139,14 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
   return (
     <>
       <div className="activity-filters" aria-label="تصفية نماذج الأنشطة">
-        {['الكل', 'عمل تطوعي', 'مبادرة طلابية', 'خدمة مجتمعية'].map((item) => (
+        {categories.map((item) => (
           <button key={item} aria-pressed={filter === item} onClick={() => setFilter(item)}>
             {item}
           </button>
         ))}
       </div>
       <div className="activity-showcase">
-        {posts
+        {shown
           .filter((p) => filter === 'الكل' || p.category === filter)
           .map((post) => (
             <article className="public-post" key={post.id}>
@@ -117,7 +169,7 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
                 </span>
               </button>
               <div className="post-copy">
-                <span className="sample-label">نموذج توضيحي</span>
+                {!post.real && <span className="sample-label">نموذج توضيحي</span>}
                 <h3>
                   <button onClick={() => open(post.id)}>{post.title}</button>
                 </h3>
@@ -125,7 +177,7 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
                 <div className="post-author">
                   <span>
                     <Users size={16} />
-                    {post.author}
+                    {post.byName ? `${post.byName} · ${post.author}` : post.author}
                   </span>
                   <span>كلية التجارة</span>
                 </div>
@@ -133,6 +185,13 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
             </article>
           ))}
       </div>
+      {hasMore && (
+        <div className="gallery-more">
+          <button className="lp-button lp-navy" disabled={loadingMore} onClick={loadMore}>
+            {loadingMore ? 'جارٍ التحميل…' : 'عرض المزيد'}
+          </button>
+        </div>
+      )}
       {!full && (
         <div className="gallery-join">
           <div>
@@ -165,12 +224,15 @@ export function ActivityGallery({ full = false }: { full?: boolean }) {
           <>
             <img src={active.image} alt={active.alt} width="720" height="540" />
             <div className="post-dialog-copy">
-              <span className="sample-label">نموذج توضيحي — ليس مشاركة فعلية</span>
+              {!active.real && (
+                <span className="sample-label">نموذج توضيحي — ليس مشاركة فعلية</span>
+              )}
               <h2>{active.title}</h2>
               <p>{active.text}</p>
               <p>
-                هذا نموذج لشكل منشور النشاط. مستندات الطالب واستمارة التسجيل لا تظهر في المعرض
-                العام.
+                {active.real
+                  ? 'نُشرت هذه المشاركة بموافقة صاحبها، بدون اسمه أو بياناته. نشرها لا يعني اعتماد النشاط أو احتساب درجته.'
+                  : 'هذا نموذج لشكل منشور النشاط. مستندات الطالب واستمارة التسجيل لا تظهر في المعرض العام.'}
               </p>
               <Link
                 className="lp-button lp-navy"
@@ -358,7 +420,9 @@ export function Landing() {
             </div>
             <p>
               تطوّع، مبادرات، وخبرات نتبادلها. استكشف شكل المشاركات التي ستجمعنا هنا.
-              <small>المحتوى والصور التالية نماذج توضيحية للواجهة.</small>
+              <small>
+                المشاركات الحقيقية تُنشر بموافقة أصحابها وبدون أسمائهم، وما عداها نماذج توضيحية.
+              </small>
             </p>
           </div>
           <div data-reveal="up" style={delay(1)}>
@@ -491,9 +555,17 @@ export function Register() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const open = Boolean(session.preview || session.registration);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const form = new FormData(event.currentTarget);
+    const data = Object.fromEntries(form) as Record<string, unknown>;
+    data.accepted_terms = form.get('accepted_terms') === 'on';
+    // الرقم الجامعي أو القومي: يكفي واحد منهما (التحقق النهائي في الخادم).
+    if (!normalizeDigits(data.student_id) && !normalizeDigits(data.national_id)) {
+      setError('اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي. يكفي واحد منهما.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -521,27 +593,42 @@ export function Register() {
         />
         <span className="lp-kicker">أول خطوة في تجربتك</span>
         <h1>إنشاء حساب طالب</h1>
-        {session.preview ? (
+        {open ? (
           <>
             <p>
-              حساب تجريبي داخل متصفحك فقط. استخدم بيانات وهمية؛ التحقق من القيد الجامعي غير مفعّل.
+              {session.preview
+                ? 'حساب تجريبي داخل متصفحك فقط. استخدم بيانات وهمية؛ التحقق من القيد الجامعي غير مفعّل.'
+                : 'أنشئ حسابك لتسجيل نشاطك ومتابعة اعتماده.'}
             </p>
             <form onSubmit={submit}>
               <label>
                 الاسم الكامل
                 <input name="name" required minLength={3} maxLength={100} autoComplete="name" />
               </label>
-              <label>
-                الرقم الجامعي
-                <input
-                  name="student_id"
-                  required
-                  pattern="[0-9]{4,20}"
-                  inputMode="numeric"
-                  dir="ltr"
-                  title="من ٤ إلى ٢٠ رقمًا"
-                />
-              </label>
+              <fieldset className="lp-ids">
+                <legend>اكتب أحد الرقمين على الأقل</legend>
+                <label>
+                  الرقم الجامعي (الموجود على الكارنيه)
+                  <input
+                    name="student_id"
+                    inputMode="numeric"
+                    dir="ltr"
+                    maxLength={20}
+                    autoComplete="off"
+                  />
+                </label>
+                <label>
+                  الرقم القومي
+                  <input
+                    name="national_id"
+                    inputMode="numeric"
+                    dir="ltr"
+                    maxLength={20}
+                    autoComplete="off"
+                  />
+                </label>
+                <small>يكفي واحد منهما، ويمكنك كتابة الاثنين. لا يظهر أي منهما لزوار الموقع.</small>
+              </fieldset>
               <label>
                 البريد الإلكتروني
                 <input
@@ -554,7 +641,7 @@ export function Register() {
                 />
               </label>
               <label>
-                كلمة المرور التجريبية
+                {session.preview ? 'كلمة المرور التجريبية' : 'كلمة المرور'}
                 <input
                   name="password"
                   type="password"
@@ -564,7 +651,9 @@ export function Register() {
                   autoComplete="new-password"
                   dir="ltr"
                 />
-                <small>٨ أحرف على الأقل. لا تستخدم كلمة مرور حقيقية.</small>
+                <small>
+                  ٨ أحرف على الأقل.{session.preview ? ' لا تستخدم كلمة مرور حقيقية.' : ''}
+                </small>
               </label>
               <label>
                 الفرقة الدراسية
@@ -575,13 +664,31 @@ export function Register() {
                   ))}
                 </select>
               </label>
+              <details className="lp-terms">
+                <summary>اقرأ شروط الاستخدام</summary>
+                <ol>
+                  {TERMS.map((t) => (
+                    <li key={t.title}>
+                      <strong>{t.title}:</strong> {t.text}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+              <label className="checkbox-label lp-terms-accept">
+                <input type="checkbox" name="accepted_terms" required />
+                <span>قرأت شروط الاستخدام وأوافق عليها.</span>
+              </label>
               {error && (
                 <p className="form-error" role="alert">
                   {error}
                 </p>
               )}
               <button className="lp-button lp-navy" disabled={busy}>
-                {busy ? 'جارٍ إنشاء الحساب…' : 'إنشاء الحساب التجريبي'}
+                {busy
+                  ? 'جارٍ إنشاء الحساب…'
+                  : session.preview
+                    ? 'إنشاء الحساب التجريبي'
+                    : 'إنشاء الحساب'}
                 <ArrowLeft size={18} />
               </button>
             </form>

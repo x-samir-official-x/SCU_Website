@@ -100,7 +100,7 @@ try {
   });
   await page.getByRole('link', { name: 'preview.png', exact: true }).waitFor();
   await page.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
-  await page.getByRole('checkbox').check();
+  await page.locator('.modal').getByRole('checkbox').check();
   await page.getByRole('button', { name: 'تأكيد التقديم', exact: true }).click();
   await page.getByRole('heading', { name: 'تم استلام طلبك بنجاح', exact: true }).waitFor();
   const mine = await page.evaluate(
@@ -151,7 +151,18 @@ try {
   );
   await other.getByRole('link', { name: 'إنشاء حساب جديد', exact: true }).click();
   await other.getByLabel('الاسم الكامل').fill('طالب تجربة جديد');
-  await other.getByLabel('الرقم الجامعي').fill('20269999');
+  // بدون رقم جامعي ولا قومي: يظهر خطأ واضح ولا يُنشأ حساب
+  await other.getByLabel('الاسم الكامل').fill('طالب تجربة جديد');
+  await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
+  await other.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
+  await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');
+  await other.getByRole('checkbox', { name: /قرأت شروط الاستخدام/ }).check();
+  await other.getByRole('button', { name: 'إنشاء الحساب التجريبي' }).click();
+  await other
+    .getByText('اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي', { exact: false })
+    .waitFor();
+  assert.equal(await other.locator('.sidebar').count(), 0);
+  await other.getByLabel('الرقم الجامعي').fill('٢٠٢٦٩٩٩٩');
   await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
   await other.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
   await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');

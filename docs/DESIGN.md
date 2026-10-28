@@ -21,13 +21,13 @@
 
 هذه اختيارات ملائمة للمشروع، وليست ترتيبًا عامًا لأفضل المهارات:
 
-| المصدر | المهارة | الاستخدام |
-| --- | --- | --- |
-| [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | ui-ux-pro-max، brand | اتجاه الخدمة والهوية والخط والتفاعل |
-| [Anthropic](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | frontend-design | تصميم مؤسسي ومحتوى مباشر، وتجنب الزخارف غير الوظيفية |
-| [Vercel](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices) | vercel-react-best-practices | محلية الأصول، والاحتفاظ بـReact الحالي، وتجنب اعتمادات حركية غير لازمة |
-| [Vercel](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | web-design-guidelines | التنقل والتركيز والصور والحقول والحركة |
-| [UI Skills](https://github.com/ibelick/ui-skills/tree/main/skills/fixing-motion-performance) | fixing-motion-performance | حركة خفيفة، قصيرة، قابلة للمقاطعة دون نقل مكتبة الحركة |
+| المصدر                                                                                       | المهارة                     | الاستخدام                                                              |
+| -------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------- |
+| [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)                     | ui-ux-pro-max، brand        | اتجاه الخدمة والهوية والخط والتفاعل                                    |
+| [Anthropic](https://github.com/anthropics/skills/tree/main/skills/frontend-design)           | frontend-design             | تصميم مؤسسي ومحتوى مباشر، وتجنب الزخارف غير الوظيفية                   |
+| [Vercel](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices)  | vercel-react-best-practices | محلية الأصول، والاحتفاظ بـReact الحالي، وتجنب اعتمادات حركية غير لازمة |
+| [Vercel](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | web-design-guidelines       | التنقل والتركيز والصور والحقول والحركة                                 |
+| [UI Skills](https://github.com/ibelick/ui-skills/tree/main/skills/fixing-motion-performance) | fixing-motion-performance   | حركة خفيفة، قصيرة، قابلة للمقاطعة دون نقل مكتبة الحركة                 |
 
 اقتراح البحث الأول احتوى على تخطيط portfolio لا يلائم تقديم الأنشطة؛ لم يُطبق. أُجري بحث أضيق عن تتبع الطلبات، مع تكييفه لنطاق المشروع والعربية والشعارين المقدمين.
 

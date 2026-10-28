@@ -8,5 +8,6 @@
   "office": "سيُحدد مكتب التسليم قبل التشغيل الرسمي",
   "points": 40,
   "activityTypes": ["خدمة مجتمعية", "نشاط بيئي", "عمل تطوعي", "مبادرة طلابية", "أخرى"],
+  "gallery": { "requireApproval": false, "nameDisplay": "first" },
   "logoPath": "/brand/scu-commerce-identities.png"
 }

@@ -54,6 +54,17 @@ export function openDatabase(dataDir: string, demo: boolean) {
     CREATE INDEX IF NOT EXISTS request_status_idx ON requests(period,status);
     CREATE INDEX IF NOT EXISTS events_request_idx ON events(request_id);
   `);
+  // ترقيات خفيفة لقواعد بيانات أُنشئت قبل المعرض.
+  const addColumn = (table: string, column: string, ddl: string) => {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  };
+  addColumn('requests', 'gallery_consent', 'gallery_consent INTEGER NOT NULL DEFAULT 0');
+  addColumn('requests', 'gallery_hidden', 'gallery_hidden INTEGER NOT NULL DEFAULT 0');
+  addColumn('users', 'terms_version', 'terms_version TEXT');
+  addColumn('users', 'terms_accepted_at', 'terms_accepted_at TEXT');
+  addColumn('requests', 'gallery_show_name', 'gallery_show_name INTEGER NOT NULL DEFAULT 0');
+  addColumn('attachments', 'kind', "kind TEXT NOT NULL DEFAULT 'document'");
   const marker = db.prepare('SELECT value FROM metadata WHERE key=?').get('dataset') as
     { value: string } | undefined;
   if (marker?.value === 'demo' && !demo) {
