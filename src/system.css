@@ -960,3 +960,78 @@ tbody tr:hover .avatar {
   flex: none;
   margin-top: 5px;
 }
+
+.cert-reader {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line, #d8dfeb);
+}
+.cert-reader h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+.cert-item {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line, #d8dfeb);
+  border-radius: 12px;
+}
+.cert-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cert-checks {
+  list-style: none;
+  margin: 12px 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.cert-checks li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.cert-checks b {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.85rem;
+}
+.cert-checks small {
+  display: block;
+  color: var(--muted, #5b6b84);
+}
+.cert-match b {
+  background: #177a3c;
+}
+.cert-partial b {
+  background: #b7791f;
+}
+.cert-mismatch b {
+  background: #c0392b;
+}
+.cert-missing b {
+  background: #6b7a90;
+}
+.cert-item pre {
+  white-space: pre-wrap;
+  direction: rtl;
+  font: inherit;
+  font-size: 0.85rem;
+  background: rgba(127, 140, 160, 0.1);
+  padding: 10px;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
