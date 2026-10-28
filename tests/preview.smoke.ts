@@ -155,19 +155,19 @@ try {
   // بدون رقم جامعي ولا قومي: يظهر خطأ واضح ولا يُنشأ حساب
   await other.getByLabel('الاسم الكامل').fill('طالب تجربة جديد');
   await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
-  await other.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
+  await other.getByLabel('كلمة المرور').fill('Example2026!');
   await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');
   await other.getByRole('checkbox', { name: /قرأت شروط الاستخدام/ }).check();
-  await other.getByRole('button', { name: 'إنشاء الحساب التجريبي' }).click();
+  await other.getByRole('button', { name: 'إنشاء الحساب' }).click();
   await other
     .getByText('اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي', { exact: false })
     .waitFor();
   assert.equal(await other.locator('.sidebar').count(), 0);
   await other.getByLabel('الرقم الجامعي').fill('٢٠٢٦٩٩٩٩');
   await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
-  await other.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
+  await other.getByLabel('كلمة المرور').fill('Example2026!');
   await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');
-  await other.getByRole('button', { name: 'إنشاء الحساب التجريبي' }).click();
+  await other.getByRole('button', { name: 'إنشاء الحساب' }).click();
   await other.locator('.sidebar').waitFor();
   const registered = await other.evaluate(
     async () => (await (await fetch('/api/session')).json()).user,

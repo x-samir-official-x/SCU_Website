@@ -184,10 +184,10 @@ try {
   await reg.getByLabel('الاسم الكامل').fill('منى إبراهيم');
   await reg.getByLabel('الرقم القومي').fill('٢٩٩٠١٠١١٢٣٤٥٦٧');
   await reg.getByLabel('البريد الإلكتروني').fill('mona@example.test');
-  await reg.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
+  await reg.getByLabel('كلمة المرور').fill('Example2026!');
   await reg.getByLabel('الفرقة الدراسية').selectOption('الفرقة الثانية');
   await reg.getByRole('checkbox', { name: /قرأت شروط الاستخدام/ }).check();
-  await reg.getByRole('button', { name: 'إنشاء الحساب التجريبي' }).click();
+  await reg.getByRole('button', { name: 'إنشاء الحساب' }).click();
   await reg.locator('.sidebar').waitFor();
   const me = await reg.evaluate(async () => (await (await fetch('/api/session')).json()).user);
   assert.equal(me.student_id, 'ق.م ••••4567');

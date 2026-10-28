@@ -607,11 +607,7 @@ export function Register() {
         <h1>إنشاء حساب طالب</h1>
         {open ? (
           <>
-            <p>
-              {session.preview
-                ? 'حساب تجريبي داخل متصفحك فقط. استخدم بيانات وهمية؛ التحقق من القيد الجامعي غير مفعّل.'
-                : 'أنشئ حسابك لتسجيل نشاطك ومتابعة اعتماده.'}
-            </p>
+            <p>أنشئ حسابك لتسجيل نشاطك ومتابعة اعتماده.</p>
             <form
               onSubmit={submit}
               noValidate
@@ -682,7 +678,7 @@ export function Register() {
                 <small>يراه الموظف المختص فقط، للتواصل بشأن طلبك.</small>
               </label>
               <label>
-                {session.preview ? 'كلمة المرور التجريبية' : 'كلمة المرور'}
+                كلمة المرور
                 <span className="lp-password">
                   <input
                     name="password"
@@ -747,11 +743,7 @@ export function Register() {
                 </p>
               )}
               <button className="lp-button lp-navy lp-span-2" disabled={busy}>
-                {busy
-                  ? 'جارٍ إنشاء الحساب…'
-                  : session.preview
-                    ? 'إنشاء الحساب التجريبي'
-                    : 'إنشاء الحساب'}
+                {busy ? 'جارٍ إنشاء الحساب…' : 'إنشاء الحساب'}
                 <ArrowLeft size={18} />
               </button>
             </form>
