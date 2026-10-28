@@ -221,7 +221,9 @@ export function ProfilePage() {
         <div className="profile-score" aria-label={`الدرجات ${totalPoints} من ${max}`}>
           <span>الدرجات</span>
           <strong>
-            {number(Math.min(totalPoints, max))} / {number(max)}
+            <bdi dir="ltr">
+              {number(Math.min(totalPoints, max))} / {number(max)}
+            </bdi>
           </strong>
         </div>
       </section>
@@ -487,7 +489,9 @@ export function ProfilePage() {
                 </div>
                 <Badge status={h.status} />
                 <span className="profile-points">
-                  {number(h.points)} / {number(max)}
+                  <bdi dir="ltr">
+                    {number(h.points)} / {number(max)}
+                  </bdi>
                 </span>
               </li>
             ))}

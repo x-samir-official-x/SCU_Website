@@ -167,7 +167,9 @@ export function StudentDashboard() {
           label="الدرجة المعتمدة"
           value={
             <>
-              {approved ? '٤٠' : '٠'} <small>/ ٤٠</small>
+              <bdi dir="ltr">
+                {approved ? '٤٠' : '٠'} <small>/ ٤٠</small>
+              </bdi>
             </>
           }
           detail={approved ? 'تم استيفاء النشاط' : 'تُضاف بعد مراجعة الموظف'}
@@ -730,7 +732,7 @@ export function ActivityPage() {
                 maxLength={2000}
               />
               <span className="field-hint">
-                ٢٠ حرفًا على الأقل <span>{number(form.description.length)} / ٢٠٠٠</span>
+                ٢٠ حرفًا على الأقل <bdi dir="ltr">{number(form.description.length)} / ٢٠٠٠</bdi>
               </span>
             </label>
           </fieldset>
@@ -748,6 +750,8 @@ export function ActivityPage() {
                 className="sr-only"
                 ref={fileRef}
                 type="file"
+                aria-label="رفع مستند مؤيد"
+                tabIndex={-1}
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={(e) => {
                   if (e.target.files?.[0]) upload(e.target.files[0]);
