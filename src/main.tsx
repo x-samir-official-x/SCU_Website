@@ -9,6 +9,7 @@ import './motion.css';
 import './polish.css';
 import './system.css';
 import './landing-premium.css';
+import { Splash } from './Splash';
 import { preparePreview } from './preview-bootstrap';
 
 preparePreview()
@@ -18,6 +19,7 @@ preparePreview()
         <BrowserRouter>
           <App />
         </BrowserRouter>
+        <Splash />
       </React.StrictMode>,
     ),
   )
