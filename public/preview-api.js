@@ -9,7 +9,20 @@ const stamp = () => new Date().toISOString();
 const fail = (condition, status, message) => {
   if (!condition) throw { status, message };
 };
-const cleanUser = ({ password, national_id, ...user }) => user;
+/* الحساب يحمل رقمًا جامعيًا أو قوميًا (واحد على الأقل). للعرض: الجامعي، وإلا آخر ٤ أرقام من القومي. */
+const idShown = (u) =>
+  u.student_id || (u.national_id ? 'ق.م ••••' + String(u.national_id).slice(-4) : null);
+const cleanUser = ({ password, national_id, ...user }) => ({
+  ...user,
+  student_id: idShown({ ...user, national_id }),
+});
+/* يجب أن يطابق src/terms.ts */
+const TERMS_VERSION = '2026-10-v1';
+const normalizeDigits = (v) =>
+  String(v ?? '')
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x660))
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x6f0))
+    .replace(/[\s,\-_.]/g, '');
 let facultyPromise;
 const facultyConfig = () =>
   (facultyPromise ||= fetch('/preview-config.json', { cache: 'no-store' }).then((r) => {
@@ -135,10 +148,11 @@ function publicRequest(r, state, faculty) {
   return {
     ...fields,
     student_name: u.name,
-    student_id: u.student_id,
+    student_id: idShown(u),
     year: u.year,
     gallery: {
       consent: Boolean(r.gallery_consent),
+      showName: Boolean(r.gallery_show_name),
       hidden: Boolean(r.gallery_hidden),
       imageId: image ? image.id : null,
       published: isPublished(r, faculty),
@@ -191,14 +205,21 @@ async function handle(request, url) {
           csrfToken: 'browser-demo-only',
           demo: true,
           preview: true,
+          registration: true,
           faculty,
         });
       if (route === '/gallery' && method === 'GET') {
-        const posts = state.requests
-          .filter((r) => r.period === faculty.periodId && isPublished(r, faculty))
-          .sort((a, b) => String(b.submitted_at).localeCompare(String(a.submitted_at)))
-          .slice(0, 12)
-          .map((r) => ({
+        const limit = Math.max(1, Math.min(24, Number(url.searchParams.get('limit')) || 9));
+        const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
+        const all = state.requests
+          .filter((r) => isPublished(r, faculty))
+          .sort(
+            (a, b) => String(b.submitted_at).localeCompare(String(a.submitted_at)) || b.id - a.id,
+          );
+        const posts = all.slice(offset, offset + limit).map((r) => {
+          const u = state.users.find((u) => u.id === r.user_id);
+          const clean = String(u.name).trim().replace(/\s+/g, ' ');
+          return {
             id: r.id,
             title: r.title,
             category: r.category,
@@ -206,9 +227,15 @@ async function handle(request, url) {
             activityDate: r.activity_date,
             text: r.description,
             publishedAt: r.submitted_at,
+            author: r.gallery_show_name
+              ? faculty.gallery?.nameDisplay === 'full'
+                ? clean
+                : clean.split(' ')[0]
+              : null,
             image: `/api/gallery/${r.id}/image`,
-          }));
-        return json({ posts });
+          };
+        });
+        return json({ posts, hasMore: all.length > offset + limit });
       }
       const galleryImage = route.match(/^\/gallery\/(\d+)\/image$/);
       if (galleryImage && method === 'GET') {
@@ -232,7 +259,8 @@ async function handle(request, url) {
         const email = String(input.email || '')
           .trim()
           .toLowerCase();
-        const studentId = String(input.student_id || '').trim();
+        const studentId = normalizeDigits(input.student_id);
+        const nationalId = normalizeDigits(input.national_id);
         const password = String(input.password || '');
         const years = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'];
         fail(name.length >= 3 && name.length <= 100, 400, 'اكتب اسمًا من ٣ إلى ١٠٠ حرف.');
@@ -241,26 +269,48 @@ async function handle(request, url) {
           400,
           'راجع البريد الإلكتروني.',
         );
-        fail(/^[0-9]{4,20}$/.test(studentId), 400, 'راجع الرقم الجامعي.');
+        fail(
+          studentId || nationalId,
+          400,
+          'اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي. يكفي واحد منهما.',
+        );
+        fail(
+          !studentId || /^[0-9]{4,20}$/.test(studentId),
+          400,
+          'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.',
+        );
+        fail(!nationalId || /^[0-9]{14}$/.test(nationalId), 400, 'الرقم القومي ١٤ رقمًا.');
         fail(password.length >= 8 && password.length <= 100, 400, 'كلمة المرور من ٨ إلى ١٠٠ حرف.');
         fail(years.includes(input.year), 400, 'اختر الفرقة الدراسية.');
         fail(
-          !state.users.some((u) => u.email.toLowerCase() === email || u.student_id === studentId),
+          input.accepted_terms === true || input.accepted_terms === 'on',
+          400,
+          'يجب الموافقة على الشروط لإنشاء الحساب.',
+        );
+        fail(
+          !state.users.some(
+            (u) =>
+              u.email.toLowerCase() === email ||
+              (studentId && u.student_id === studentId) ||
+              (nationalId && u.national_id === nationalId),
+          ),
           409,
-          'البريد الإلكتروني أو الرقم الجامعي مستخدم بالفعل.',
+          'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.',
         );
         const id = state.nextUser++;
         state.users.push({
           id,
           name,
           email,
-          student_id: studentId,
+          student_id: studentId || null,
           password,
           year: input.year,
-          national_id: null,
+          national_id: nationalId || null,
           role: 'student',
           active: 1,
           created_at: stamp(),
+          terms_version: TERMS_VERSION,
+          terms_accepted_at: stamp(),
         });
         state.activeUser = id;
         return json({ ok: true }, 201);
@@ -421,7 +471,11 @@ async function handle(request, url) {
           r.reviewed_at = null;
           r.physical_received = 0;
           r.versions.push({
-            student: cleanUser(user),
+            student: {
+              ...cleanUser(user),
+              id_label: user.student_id ? 'الرقم الجامعي' : 'الرقم القومي',
+              student_id: user.student_id || user.national_id || '',
+            },
             title: r.title,
             category: r.category,
             organization: r.organization,
@@ -435,9 +489,16 @@ async function handle(request, url) {
         }
         if (action === 'gallery' && method === 'PUT') {
           fail(user.role === 'student' && r.user_id === user.id, 403, 'غير مسموح.');
-          fail(typeof input.consent === 'boolean', 400, 'طلب غير صحيح.');
-          if (input.consent) editable(r);
-          r.gallery_consent = input.consent ? 1 : 0;
+          fail(
+            (input.consent === undefined || typeof input.consent === 'boolean') &&
+              (input.showName === undefined || typeof input.showName === 'boolean'),
+            400,
+            'طلب غير صحيح.',
+          );
+          if (input.consent === true || input.showName === true) editable(r);
+          if (input.consent !== undefined) r.gallery_consent = input.consent ? 1 : 0;
+          if (input.showName !== undefined) r.gallery_show_name = input.showName ? 1 : 0;
+          if (input.consent === false) r.gallery_show_name = 0;
           return json({ request: publicRequest(r, state, faculty) });
         }
         if (action === 'form' && method === 'GET') {
@@ -631,7 +692,7 @@ function printableForm(r, state, faculty) {
   return new Response(
     `<!doctype html><html dir="rtl" lang="ar"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>استمارة النشاط — ACT-${r.id}</title><style>
   @font-face{font-family:Arabic;src:url('/fonts/Tajawal-Regular.ttf')}@font-face{font-family:Arabic;src:url('/fonts/Tajawal-Bold.ttf');font-weight:700}*{box-sizing:border-box}body{font-family:Arabic,sans-serif;color:#183451;background:#eef3fa;margin:0;line-height:1.8}.sheet{max-width:790px;margin:24px auto;background:#fff;padding:35px}header{display:flex;gap:20px;align-items:center;border-bottom:2px solid #102b50;padding-bottom:18px}header img{width:150px;height:auto}h1{font-size:25px}h2{font-size:17px;margin:22px 0 10px}p{font-size:14px}.notice{background:#edf3fc;padding:15px;font-size:13px}.grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #dfe7f2}.grid>div{padding:13px;border-bottom:1px solid #e1e9f5}small,strong{display:block}small{color:#607793}strong{font-size:15px}.description{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #dfe7f2;padding:15px;min-height:90px}.sign{display:flex;justify-content:space-between;margin-top:35px;font-size:13px}.toolbar{max-width:790px;margin:22px auto;padding:15px;color:#193c6b}.toolbar button{font:inherit;background:#235ce3;color:#fff;border:0;border-radius:8px;padding:12px 20px;cursor:pointer}footer{margin-top:35px;font-size:11px;color:#637996}@page{size:A4;margin:16mm}@media print{body{background:white}.toolbar{display:none}.sheet{margin:0;padding:0;max-width:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}@media(max-width:600px){.sheet{padding:22px}.toolbar{padding:18px}header img{width:110px}}
-  </style><div class="toolbar"><button onclick="window.print()">طباعة الاستمارة / حفظ PDF</button><p>من نافذة الطباعة اختر «حفظ بتنسيق PDF» لتنزيل نسخة. هذه معاينة ببيانات محفوظة في متصفحك فقط.</p></div><main class="sheet"><header><img src="${escape(faculty.logoPath)}" width="2001" height="786" alt="شعار الجامعة والكلية"><div><strong>${escape(faculty.university)}</strong><span>${escape(faculty.faculty)}</span><small>بوابة النشاط الطلابي</small></div></header><h1>استمارة تقديم النشاط الطلابي</h1><div class="notice"><strong>نسخة معاينة تجريبية — لا تصلح للاعتماد الرسمي</strong>رقم الطلب ACT-${String(r.id).padStart(5, '0')} · الإصدار ${r.version}</div><h2>بيانات الطالب</h2><div class="grid">${field('الاسم', s.student.name)}${field('الرقم الجامعي', s.student.student_id)}${field('الفرقة', s.student.year)}${field('الكلية', faculty.faculty)}</div><h2>بيانات النشاط</h2><div class="grid">${field('اسم النشاط', s.title)}${field('نوع النشاط', s.category)}${field('الجهة المنظمة', s.organization)}${field('تاريخ المشاركة', s.activity_date)}</div><h2>وصف المشاركة</h2><div class="description">${escape(s.description)}</div><p>أقر بصحة البيانات والمستندات المقدمة.</p><div class="sign"><span>توقيع الطالب<br>........................</span><span>الموظف المختص<br>........................</span><span>التاريخ<br>........................</span></div><footer>${escape(faculty.office)}<br>هذه الاستمارة تثبت التقديم فقط، والدرجة لا تُضاف قبل المراجعة والاعتماد.</footer></main></html>`,
+  </style><div class="toolbar"><button onclick="window.print()">طباعة الاستمارة / حفظ PDF</button><p>من نافذة الطباعة اختر «حفظ بتنسيق PDF» لتنزيل نسخة. هذه معاينة ببيانات محفوظة في متصفحك فقط.</p></div><main class="sheet"><header><img src="${escape(faculty.logoPath)}" width="2001" height="786" alt="شعار الجامعة والكلية"><div><strong>${escape(faculty.university)}</strong><span>${escape(faculty.faculty)}</span><small>بوابة النشاط الطلابي</small></div></header><h1>استمارة تقديم النشاط الطلابي</h1><div class="notice"><strong>نسخة معاينة تجريبية — لا تصلح للاعتماد الرسمي</strong>رقم الطلب ACT-${String(r.id).padStart(5, '0')} · الإصدار ${r.version}</div><h2>بيانات الطالب</h2><div class="grid">${field('الاسم', s.student.name)}${field(s.student.id_label || 'الرقم الجامعي', s.student.student_id)}${field('الفرقة', s.student.year)}${field('الكلية', faculty.faculty)}</div><h2>بيانات النشاط</h2><div class="grid">${field('اسم النشاط', s.title)}${field('نوع النشاط', s.category)}${field('الجهة المنظمة', s.organization)}${field('تاريخ المشاركة', s.activity_date)}</div><h2>وصف المشاركة</h2><div class="description">${escape(s.description)}</div><p>أقر بصحة البيانات والمستندات المقدمة.</p><div class="sign"><span>توقيع الطالب<br>........................</span><span>الموظف المختص<br>........................</span><span>التاريخ<br>........................</span></div><footer>${escape(faculty.office)}<br>هذه الاستمارة تثبت التقديم فقط، والدرجة لا تُضاف قبل المراجعة والاعتماد.</footer></main></html>`,
     { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } },
   );
 }

@@ -47,6 +47,8 @@ import {
 import type { ActivityRequest, Attachment } from './types';
 import { AcademicSeal } from './Brand';
 import { GalleryOptIn } from './GalleryOptIn';
+import { FormAssistant } from './FormAssistant';
+import type { Suggestion } from './assistant';
 
 export function ProgressRing({ approved, large = false }: { approved: boolean; large?: boolean }) {
   return (
@@ -490,6 +492,44 @@ export function ActivityPage() {
       setBusy('');
     }
   }
+  /** يطبّق اقتراح المساعد على الحقول، ثم ينقل الطالب لأول ما ينقصه (أو لزر الإرسال إن اكتمل كل شيء). */
+  function applySuggestion(s: Suggestion) {
+    const next = { ...form };
+    for (const key of [
+      'title',
+      'category',
+      'organization',
+      'activity_date',
+      'description',
+    ] as const)
+      if (s[key]) next[key] = s[key];
+    setForm(next);
+    setValidation('');
+    const missing =
+      next.title.trim().length < 5
+        ? 'activity-title'
+        : !next.category
+          ? 'activity-category'
+          : !next.activity_date
+            ? 'activity-date'
+            : next.organization.trim().length < 3
+              ? 'activity-org'
+              : next.description.trim().length < 20
+                ? 'activity-description'
+                : !r?.attachments?.length
+                  ? 'doc-upload'
+                  : 'review-submit';
+    toast(
+      missing === 'review-submit'
+        ? 'تمت التعبئة. راجع البيانات ثم اضغط «مراجعة وإرسال الطلب».'
+        : 'تمت التعبئة. أكمل الحقل التالي ثم راجع بياناتك.',
+    );
+    setTimeout(() => {
+      const el = document.getElementById(missing);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus({ preventScroll: true });
+    }, 60);
+  }
   function preSubmit() {
     if (
       form.title.trim().length < 5 ||
@@ -608,7 +648,9 @@ export function ActivityPage() {
               <strong>{user.name}</strong>
             </div>
             <div>
-              <small>الرقم الجامعي</small>
+              <small>
+                {String(user.student_id).startsWith('ق.م') ? 'الرقم القومي' : 'الرقم الجامعي'}
+              </small>
               <strong dir="ltr">{user.student_id}</strong>
             </div>
             <div>
@@ -616,6 +658,9 @@ export function ActivityPage() {
               <strong>{user.year}</strong>
             </div>
           </div>
+          {editable && (
+            <FormAssistant types={session.faculty.activityTypes} onApply={applySuggestion} />
+          )}
           <div className="form-section-heading">
             <span>٠٢</span>
             <div>
@@ -637,7 +682,11 @@ export function ActivityPage() {
             <div className="form-row">
               <label>
                 نوع النشاط <span className="required">*</span>
-                <select value={form.category} onChange={(e) => set('category', e.target.value)}>
+                <select
+                  id="activity-category"
+                  value={form.category}
+                  onChange={(e) => set('category', e.target.value)}
+                >
                   <option value="">اختر نوع النشاط</option>
                   {session.faculty.activityTypes.map((t) => (
                     <option key={t}>{t}</option>
@@ -647,6 +696,7 @@ export function ActivityPage() {
               <label>
                 تاريخ المشاركة <span className="required">*</span>
                 <input
+                  id="activity-date"
                   type="date"
                   dir="rtl"
                   max={new Date().toISOString().slice(0, 10)}
@@ -658,6 +708,7 @@ export function ActivityPage() {
             <label>
               الجهة المنظمة <span className="required">*</span>
               <input
+                id="activity-org"
                 value={form.organization}
                 onChange={(e) => set('organization', e.target.value)}
                 placeholder="اسم الجهة أو الفريق المنظم للنشاط"
@@ -667,6 +718,7 @@ export function ActivityPage() {
             <label>
               وصف مشاركتك <span className="required">*</span>
               <textarea
+                id="activity-description"
                 value={form.description}
                 onChange={(e) => set('description', e.target.value)}
                 placeholder="اكتب نبذة عن النشاط ودورك فيه…"
@@ -698,6 +750,7 @@ export function ActivityPage() {
                 }}
               />
               <button
+                id="doc-upload"
                 className="upload-zone"
                 type="button"
                 disabled={!!busy || (r?.attachments?.length ?? 0) >= 5}
@@ -735,6 +788,7 @@ export function ActivityPage() {
           {editable && (
             <div className="form-actions">
               <button
+                id="review-submit"
                 type="button"
                 className="button primary"
                 disabled={!!busy}

@@ -22,9 +22,26 @@ export function GalleryOptIn({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<boolean | null>(null);
+  const [namePending, setNamePending] = useState<boolean | null>(null);
   const consent = pending ?? Boolean(request?.gallery?.consent);
+  const showName = consent && (namePending ?? Boolean(request?.gallery?.showName));
   const requireApproval = Boolean(request?.gallery?.requireApproval);
 
+  async function setName(next: boolean) {
+    setNamePending(next);
+    try {
+      const r = await ensureRequest();
+      const result = await api<{ request: ActivityRequest }>(`/requests/${r.id}/gallery`, {
+        method: 'PUT',
+        body: JSON.stringify({ showName: next }),
+      });
+      onChange(result.request);
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setNamePending(null);
+    }
+  }
   async function setConsent(next: boolean) {
     setPending(next);
     try {
@@ -81,7 +98,9 @@ export function GalleryOptIn({
         <span>٠٤</span>
         <div>
           <h2>المعرض العام (اختياري)</h2>
-          <p>شارك صورة من نشاطك مع زملائك. يظهر النشاط بدون اسمك أو رقمك الجامعي.</p>
+          <p>
+            شارك صورة من نشاطك مع زملائك. الاسم لا يظهر إلا إذا وافقت، ورقمك الجامعي لا يظهر أبدًا.
+          </p>
         </div>
         <Images size={19} />
       </div>
@@ -92,8 +111,22 @@ export function GalleryOptIn({
           disabled={busy || (disabled && !consent)}
           onChange={(e) => setConsent(e.target.checked)}
         />
-        <span>أوافق على نشر صورة ووصف نشاطي في المعرض العام، بدون ذكر اسمي.</span>
+        <span>أوافق على نشر صورة ووصف نشاطي في المعرض العام.</span>
       </label>
+      {consent && (
+        <label className="checkbox-label gallery-consent gallery-name-consent">
+          <input
+            type="checkbox"
+            checked={showName}
+            disabled={busy || (disabled && !showName)}
+            onChange={(e) => setName(e.target.checked)}
+          />
+          <span>
+            وأوافق أيضًا على إظهار <strong>اسمي الأول</strong> بجانب المنشور (اختياري). لو لم أختر،
+            يظهر المنشور باسم الجهة المنظمة فقط.
+          </span>
+        </label>
+      )}
       {consent && (
         <div className="gallery-picker">
           <input

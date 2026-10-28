@@ -145,6 +145,7 @@ test('gallery: publishes right after submit, hides the name, never grants points
         assert.ok(!flat.includes(secret), `leaked ${secret}`);
       assert.deepEqual(Object.keys(post).sort(), [
         'activityDate',
+        'author',
         'category',
         'id',
         'image',
@@ -157,6 +158,7 @@ test('gallery: publishes right after submit, hides the name, never grants points
       assert.equal(img.status, 200);
       const bytes = Buffer.from(await img.arrayBuffer());
       assert.ok(!bytes.includes('SECRET'));
+      assert.equal(post.author, null);
       const status = db.prepare('SELECT status FROM requests WHERE id=?').get(id) as {
         status: string;
       };
@@ -207,5 +209,94 @@ test('gallery: publishes right after submit, hides the name, never grants points
       db.prepare('UPDATE requests SET status=? WHERE id=?').run(s, id);
       assert.deepEqual((await (await call('/gallery')).json()).posts, [], s);
     }
+  });
+});
+
+test('gallery: optional first-name display, load-more pagination, no period cut-off', async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-gallery2-'));
+  const { app, db } = createApp({ dataDir: dir, demo: true });
+  const server: Server = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  t.after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const list = async (q = '') => (await (await fetch(`${base}/gallery${q}`)).json()) as any;
+  // ٢٥ منشورًا منشورًا مباشرةً، بعضها من فترة قديمة، ومنها ما وافق صاحبه على إظهار اسمه.
+  const students = db.prepare("SELECT id FROM users WHERE role='student'").all() as {
+    id: number;
+  }[];
+  const insert = db.prepare(
+    "INSERT INTO requests (user_id,period,title,category,organization,activity_date,description,status,created_at,updated_at,submitted_at,version,gallery_consent,gallery_show_name) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,1,1,?)",
+  );
+  const attach = db.prepare(
+    "INSERT INTO attachments (request_id,original_name,stored_name,mime,size,created_at,kind) VALUES (?,?,?,?,?,?,'gallery')",
+  );
+  let n = 0;
+  db.exec(
+    'DELETE FROM events; DELETE FROM attachments; DELETE FROM request_versions; DELETE FROM requests;',
+  );
+  for (const [i, student] of students.entries()) {
+    for (let k = 0; k < 5; k++) {
+      const stamp = new Date(Date.UTC(2026, 0, 1, 0, n++)).toISOString();
+      const period = k === 0 ? 'old-period-2025' : `pilot-2026-${k}`;
+      const id = Number(
+        insert.run(
+          student.id,
+          period,
+          `نشاط ${n}`,
+          'عمل تطوعي',
+          'فريق',
+          '2026-01-01',
+          'وصف النشاط يتجاوز العشرين حرفًا بسهولة.',
+          stamp,
+          stamp,
+          stamp,
+          i === 0 && k === 1 ? 1 : 0,
+        ).lastInsertRowid,
+      );
+      attach.run(id, 'gallery-image', `file-${id}`, 'image/jpeg', 10, stamp);
+    }
+  }
+  const total = n;
+  assert.equal(total, 25);
+
+  await t.test('pages of 9 with hasMore, newest first, nothing is dropped', async () => {
+    const seen: number[] = [];
+    let offset = 0;
+    for (let guard = 0; guard < 10; guard++) {
+      const page = await list(`?limit=9&offset=${offset}`);
+      seen.push(...page.posts.map((p: { id: number }) => p.id));
+      offset += page.posts.length;
+      if (!page.hasMore) break;
+    }
+    assert.equal(seen.length, total);
+    assert.equal(new Set(seen).size, total);
+    assert.deepEqual(
+      seen,
+      [...seen].sort((a, b) => b - a),
+    );
+    assert.equal((await list('?limit=9&offset=0')).hasMore, true);
+    assert.equal((await list('?limit=9&offset=18')).hasMore, false);
+    assert.equal((await list('?limit=999')).posts.length, 24);
+  });
+
+  await t.test('old-period posts stay visible', async () => {
+    assert.ok((await list('?limit=24')).posts.length >= 20);
+  });
+
+  await t.test('names appear only for those who opted in, first name only', async () => {
+    const all = (await list('?limit=24')).posts as { author: string | null }[];
+    const named = all.filter((p) => p.author);
+    assert.equal(named.length, 1);
+    const user = db.prepare('SELECT name FROM users WHERE id=?').get(students[0].id) as {
+      name: string;
+    };
+    assert.equal(named[0].author, user.name.split(' ')[0]);
+    assert.ok(user.name.includes(' '));
+    assert.ok(!JSON.stringify(all).includes(user.name));
   });
 });

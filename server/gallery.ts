@@ -75,3 +75,9 @@ export function stripPngMetadata(input: Buffer): Buffer {
 export function sanitizeGalleryImage(buffer: Buffer, mime: string): Buffer {
   return mime === 'image/png' ? stripPngMetadata(buffer) : stripJpegMetadata(buffer);
 }
+
+/** الاسم الظاهر في المعرض بعد موافقة الطالب: الأول فقط (الافتراضي) أو الكامل حسب config. */
+export function publicName(name: string, mode: 'first' | 'full' = 'first'): string {
+  const clean = name.trim().replace(/\s+/g, ' ');
+  return mode === 'full' ? clean : (clean.split(' ')[0] ?? clean);
+}

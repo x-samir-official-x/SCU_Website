@@ -76,13 +76,25 @@ try {
 
   await login('طالب');
   await page.goto(`${base}/activity`, { waitUntil: 'networkidle' });
-  await page.locator('#activity-title').fill('حملة نظافة الحرم الجامعي');
-  await page.getByLabel('نوع النشاط').selectOption('نشاط بيئي');
-  await page.getByLabel('تاريخ المشاركة').fill('2026-10-20');
-  await page.getByLabel('الجهة المنظمة').fill('فريق أصدقاء البيئة');
+  // المساعد المحلي: الطالب يكتب بكلماته فتُعبّأ الاستمارة، ثم ينتقل لأول ما ينقصه (المستند)
   await page
-    .getByLabel('وصف مشاركتك')
-    .fill('شاركنا في تنظيف الحرم الجامعي وتوزيع أكياس القمامة على الطلاب.');
+    .getByLabel('اكتب ما فعلته بكلماتك')
+    .fill(
+      'شاركت في حملة تنظيف الحرم الجامعي يوم 20 أكتوبر 2026 مع فريق أصدقاء البيئة، ووزعنا أكياس القمامة على الطلاب.',
+    );
+  await page.getByRole('button', { name: 'اقترح تعبئة الاستمارة' }).click();
+  await page.locator('.assistant-result').waitFor();
+  assert.ok((await page.locator('.assistant-result').innerText()).includes('2026-10-20'));
+  await page.getByRole('button', { name: 'تطبيق على الاستمارة' }).click();
+  assert.equal(
+    await page.locator('#activity-title').inputValue(),
+    'المشاركة في حملة تنظيف الحرم الجامعي',
+  );
+  assert.equal(await page.locator('#activity-category').inputValue(), 'نشاط بيئي');
+  assert.equal(await page.locator('#activity-date').inputValue(), '2026-10-20');
+  assert.equal(await page.locator('#activity-org').inputValue(), 'فريق أصدقاء البيئة');
+  assert.ok((await page.locator('#activity-description').inputValue()).includes('أكياس القمامة'));
+  await page.waitForFunction(() => document.activeElement?.id === 'doc-upload');
   await page
     .locator('input[type=file]')
     .first()
@@ -93,6 +105,10 @@ try {
   await page.getByRole('checkbox', { name: /أوافق على نشر/ }).check();
   await page.getByRole('button', { name: 'مراجعة وإرسال الطلب' }).click();
   await page.getByText('أضف صورة المعرض أو ألغِ خيار النشر قبل التقديم.').waitFor();
+  await page.getByRole('checkbox', { name: /اسمي الأول/ }).check();
+  await page.waitForFunction(
+    async () => (await (await fetch('/api/requests/mine')).json()).request.gallery.showName,
+  );
   await page
     .getByLabel('صورة المعرض')
     .setInputFiles({ name: 'IMG_secret.png', mimeType: 'image/png', buffer: PNG });
@@ -106,7 +122,8 @@ try {
   const posts = await galleryPosts();
   assert.equal(posts.length, 1);
   const flat = JSON.stringify(posts);
-  for (const secret of ['يوسف', 'student@demo.local', '20260001', 'student_name'])
+  assert.equal((posts[0] as { author: string }).author, 'يوسف');
+  for (const secret of ['يوسف أحمد', 'student@demo.local', '20260001', 'student_name'])
     assert.ok(!flat.includes(secret));
   const mine = await page.evaluate(
     async () => (await (await fetch('/api/requests/mine')).json()).request,
@@ -120,9 +137,10 @@ try {
   );
   assert.equal(await page.locator('.public-post').count(), 3);
   assert.ok(
-    (await page.locator('.public-post').first().innerText()).includes('حملة نظافة الحرم الجامعي'),
+    (await page.locator('.public-post').first().innerText()).includes('حملة تنظيف الحرم الجامعي'),
   );
-  assert.ok(!(await page.locator('.landing-page').innerText()).includes('يوسف'));
+  const landing = await page.locator('.landing-page').innerText();
+  assert.ok(landing.includes('يوسف ·') && !landing.includes('يوسف أحمد'));
   const firstImage = page.locator('.public-post').first().locator('img');
   await firstImage.scrollIntoViewIfNeeded();
   await page.waitForFunction(
@@ -158,6 +176,22 @@ try {
   await page.waitForFunction(
     async () => (await (await fetch('/api/gallery')).json()).posts.length === 0,
   );
+  // تسجيل بالرقم القومي فقط: يُنشأ الحساب ولا يظهر الرقم كاملًا
+  const fresh = await browser.newContext();
+  const reg = await fresh.newPage();
+  await reg.goto(`${base}/register`, { waitUntil: 'networkidle' });
+  await reg.getByLabel('الاسم الكامل').fill('منى إبراهيم');
+  await reg.getByLabel('الرقم القومي').fill('٢٩٩٠١٠١١٢٣٤٥٦٧');
+  await reg.getByLabel('البريد الإلكتروني').fill('mona@example.test');
+  await reg.getByLabel('كلمة المرور التجريبية').fill('Example2026!');
+  await reg.getByLabel('الفرقة الدراسية').selectOption('الفرقة الثانية');
+  await reg.getByRole('checkbox', { name: /قرأت شروط الاستخدام/ }).check();
+  await reg.getByRole('button', { name: 'إنشاء الحساب التجريبي' }).click();
+  await reg.locator('.sidebar').waitFor();
+  const me = await reg.evaluate(async () => (await (await fetch('/api/session')).json()).user);
+  assert.equal(me.student_id, 'ق.م ••••4567');
+  assert.ok(!JSON.stringify(me).includes('29901011234567'));
+  await fresh.close();
   assert.deepEqual(errors, []);
   console.log('Gallery browser workflow passed.');
 } finally {

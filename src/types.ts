@@ -20,13 +20,14 @@ export interface Faculty {
   office: string;
   points: number;
   activityTypes: string[];
-  gallery?: { requireApproval: boolean };
+  gallery?: { requireApproval: boolean; nameDisplay?: 'first' | 'full' };
 }
 export interface Session {
   user: User | null;
   csrfToken?: string;
   demo: boolean;
   preview?: boolean;
+  registration?: boolean;
   faculty: Faculty;
 }
 export interface Attachment {
@@ -67,10 +68,12 @@ export interface ActivityRequest {
   events?: Audit[];
   gallery_consent?: number;
   gallery_hidden?: number;
+  gallery_show_name?: number;
   gallery?: GalleryState;
 }
 export interface GalleryState {
   consent: boolean;
+  showName: boolean;
   hidden: boolean;
   imageId: number | null;
   published: boolean;
@@ -84,6 +87,7 @@ export interface GalleryPost {
   activityDate: string;
   text: string;
   publishedAt: string;
+  author: string | null;
   image: string;
 }
 export interface Staff extends User {

@@ -9,12 +9,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, faculty, hashPassword, now } from './db';
 import { renderForm, FORM_TEMPLATE_VERSION } from './pdf';
-import { sanitizeGalleryImage } from './gallery';
+import { sanitizeGalleryImage, publicName } from './gallery';
+import { validateRegistration } from '../src/registration';
 import type { ActivityRequest, Role, User } from '../src/types';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-const publicColumns = 'id,name,email,role,student_id,year,active';
+// الحساب قد يحمل رقمًا جامعيًا أو قوميًا (واحد على الأقل). للعرض نستخدم الجامعي، وإلا آخر ٤ أرقام من القومي.
+const idDisplay = (alias = '') =>
+  `COALESCE(${alias}student_id, 'ق.م ••••' || substr(${alias}national_id, -4))`;
+const publicColumns = `id,name,email,role,${idDisplay()} AS student_id,year,active`;
 class HttpError extends Error {
   constructor(
     public status: number,
@@ -53,7 +57,9 @@ const submittedSchema = draftSchema.extend({
   description: z.string().trim().min(20).max(2000),
 });
 
-export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
+export function createApp(
+  options: { dataDir?: string; demo?: boolean; registrationOpen?: boolean } = {},
+) {
   const demo = options.demo ?? process.env.DEMO_MODE === 'true';
   const dataDir = path.resolve(options.dataDir ?? process.env.DATA_DIR ?? path.join(root, '.data'));
   const uploadDir = path.join(dataDir, 'uploads');
@@ -61,6 +67,8 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
   const db = openDatabase(dataDir, demo);
   mkdirSync(uploadDir, { recursive: true, mode: 0o700 });
   mkdirSync(formDir, { recursive: true, mode: 0o700 });
+  // التسجيل العام مقفول افتراضيًا حتى يُعتمد التحقق الجامعي. للتفعيل: REGISTRATION_OPEN=true
+  const registrationOpen = options.registrationOpen ?? process.env.REGISTRATION_OPEN === 'true';
   const app = express();
   app.disable('x-powered-by');
   const pendingForms = new Map<string, Promise<void>>();
@@ -95,7 +103,7 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     if (cookie && /^[a-f0-9]{64}$/.test(cookie)) {
       const session = db
         .prepare(
-          `SELECT s.csrf, u.${publicColumns.split(',').join(',u.')} FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
+          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
         )
         .get(hash(cookie), Date.now());
       if (session) {
@@ -153,7 +161,7 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
   function getRequest(id: number, user: User) {
     const r = db
       .prepare(
-        `SELECT r.*, u.name AS student_name, u.student_id, u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE r.id=?`,
+        `SELECT r.*, u.name AS student_name, ${idDisplay('u.')} AS student_id, u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE r.id=?`,
       )
       .get(id) as unknown as ActivityRequest | undefined;
     assert(r && (user.role !== 'student' || r.user_id === user.id), 404, 'الطلب غير موجود.');
@@ -178,6 +186,7 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       ...r,
       gallery: {
         consent: Boolean(r.gallery_consent),
+        showName: Boolean(r.gallery_show_name),
         hidden: Boolean(r.gallery_hidden),
         imageId: galleryImage?.id ?? null,
         published: Boolean(published),
@@ -213,7 +222,13 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     res.json({ status: 'ok', demo });
   });
   app.get('/api/session', (_req, res) =>
-    res.json({ user: res.locals.user ?? null, csrfToken: res.locals.csrf, demo, faculty }),
+    res.json({
+      user: res.locals.user ?? null,
+      csrfToken: res.locals.csrf,
+      demo,
+      faculty,
+      registration: registrationOpen,
+    }),
   );
   app.get('/api/demo-accounts', (_req, res) => {
     assert(demo, 404, 'غير متاح.');
@@ -225,6 +240,24 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       ],
     });
   });
+  function startSession(res: Response, userId: number) {
+    const token = randomBytes(32).toString('hex');
+    const csrf = randomBytes(24).toString('hex');
+    db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(Date.now());
+    db.prepare('INSERT INTO sessions VALUES (?,?,?,?)').run(
+      hash(token),
+      userId,
+      csrf,
+      Date.now() + 12 * 60 * 60 * 1000,
+    );
+    res.cookie('activity_session', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.COOKIE_SECURE === 'true',
+      maxAge: 12 * 60 * 60 * 1000,
+      path: '/',
+    });
+  }
   app.post(
     '/api/login',
     rateLimit({
@@ -246,23 +279,45 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
         401,
         'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
       );
-      const token = randomBytes(32).toString('hex');
-      const csrf = randomBytes(24).toString('hex');
-      db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(Date.now());
-      db.prepare('INSERT INTO sessions VALUES (?,?,?,?)').run(
-        hash(token),
-        user.id,
-        csrf,
-        Date.now() + 12 * 60 * 60 * 1000,
-      );
-      res.cookie('activity_session', token, {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.COOKIE_SECURE === 'true',
-        maxAge: 12 * 60 * 60 * 1000,
-        path: '/',
-      });
+      startSession(res, user.id);
       res.json({ ok: true });
+    },
+  );
+  app.post(
+    '/api/register',
+    rateLimit({
+      windowMs: 60 * 60 * 1000,
+      limit: 20,
+      message: { error: 'محاولات تسجيل كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      assert(registrationOpen, 403, 'إنشاء الحسابات غير متاح حاليًا.');
+      const parsed = validateRegistration(req.body ?? {});
+      assert(parsed.ok, 400, parsed.ok ? '' : parsed.error);
+      const v = parsed.value;
+      const taken = db
+        .prepare(
+          'SELECT 1 AS x FROM users WHERE email=? COLLATE NOCASE OR (? IS NOT NULL AND student_id=?) OR (? IS NOT NULL AND national_id=?)',
+        )
+        .get(v.email, v.student_id, v.student_id, v.national_id, v.national_id);
+      assert(!taken, 409, 'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.');
+      const result = db
+        .prepare(
+          "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at) VALUES (?,?,?,'student',?,?,?,?,?,?)",
+        )
+        .run(
+          v.name,
+          v.email,
+          hashPassword(v.password),
+          v.student_id,
+          v.national_id,
+          v.year,
+          now(),
+          v.terms_version,
+          now(),
+        );
+      startSession(res, Number(result.lastInsertRowid));
+      res.status(201).json({ ok: true });
     },
   );
   app.post('/api/logout', auth, (req, res) => {
@@ -348,7 +403,15 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
         "UPDATE requests SET status='pending',submitted_at=?,updated_at=?,version=?,physical_received=0,reviewed_at=NULL WHERE id=?",
       ).run(date, date, version, r.id);
       const updated = getRequest(r.id, user);
-      const student = { name: user.name, student_id: user.student_id, year: user.year };
+      const ids = db
+        .prepare('SELECT student_id,national_id FROM users WHERE id=?')
+        .get(user.id) as { student_id: string | null; national_id: string | null };
+      const student = {
+        name: user.name,
+        student_id: ids.student_id ?? '',
+        national_id: ids.student_id ? '' : (ids.national_id ?? ''),
+        year: user.year,
+      };
       db.prepare('INSERT INTO request_versions VALUES (?,?,?,?)').run(
         r.id,
         version,
@@ -464,14 +527,20 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     const user: User = res.locals.user;
     const r = getRequest(parseId(String(req.params.id)), user);
     assert(user.role === 'student' && r.user_id === user.id, 403, 'غير مسموح.');
-    const consent = z.object({ consent: z.boolean() }).safeParse(req.body);
-    assert(consent.success, 400, 'طلب غير صحيح.');
-    if (consent.data.consent) editable(r, user);
-    // لا نغيّر updated_at حتى لا تُعاد تهيئة نموذج الطالب أثناء الكتابة.
-    db.prepare('UPDATE requests SET gallery_consent=? WHERE id=?').run(
-      consent.data.consent ? 1 : 0,
-      r.id,
-    );
+    const input = z
+      .object({ consent: z.boolean().optional(), showName: z.boolean().optional() })
+      .safeParse(req.body);
+    assert(input.success, 400, 'طلب غير صحيح.');
+    const { consent, showName } = input.data;
+    // منح الموافقة (أو إظهار الاسم) أثناء التعديل فقط؛ السحب مسموح دائمًا.
+    if (consent === true || showName === true) editable(r, user);
+    // لا تغيير في updated_at حتى لا تُعاد تهيئة نموذج الطالب أثناء الكتابة.
+    if (consent !== undefined)
+      db.prepare('UPDATE requests SET gallery_consent=? WHERE id=?').run(consent ? 1 : 0, r.id);
+    if (showName !== undefined)
+      db.prepare('UPDATE requests SET gallery_show_name=? WHERE id=?').run(showName ? 1 : 0, r.id);
+    if (consent === false)
+      db.prepare('UPDATE requests SET gallery_show_name=0 WHERE id=?').run(r.id);
     res.json({ request: detail(getRequest(r.id, user)) });
   });
   // إخفاء/إظهار نشاط في المعرض من طرف الموظف (إشراف لاحق، لا علاقة له بالاعتماد).
@@ -493,12 +562,15 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
   });
   // المعرض العام: بدون تسجيل دخول، وبدون اسم الطالب أو رقمه أو أي معرّف شخصي.
   const galleryLimit = rateLimit({ windowMs: 60 * 1000, limit: 120 });
-  app.get('/api/gallery', galleryLimit, (_req, res) => {
+  app.get('/api/gallery', galleryLimit, (req, res) => {
+    const limit = Math.max(1, Math.min(24, Number(req.query.limit) || 9));
+    const offset = Math.max(0, Math.min(100000, Number(req.query.offset) || 0));
+    // المنشورات تبقى ظاهرة دائمًا (بدون ربط بفترة)، مرتبة من الأحدث، وتُحمَّل على دفعات.
     const rows = db
       .prepare(
-        `SELECT r.id,r.title,r.category,r.organization,r.activity_date,r.description,r.submitted_at FROM requests r WHERE r.period=? AND ${publishedSql} ORDER BY r.submitted_at DESC LIMIT 12`,
+        `SELECT r.id,r.title,r.category,r.organization,r.activity_date,r.description,r.submitted_at,CASE WHEN r.gallery_show_name=1 THEN u.name END AS author_name FROM requests r JOIN users u ON u.id=r.user_id WHERE ${publishedSql} ORDER BY r.submitted_at DESC, r.id DESC LIMIT ? OFFSET ?`,
       )
-      .all(faculty.periodId) as {
+      .all(limit + 1, offset) as {
       id: number;
       title: string;
       category: string;
@@ -506,10 +578,12 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       activity_date: string;
       description: string;
       submitted_at: string;
+      author_name: string | null;
     }[];
     res.setHeader('Cache-Control', 'no-store');
     res.json({
-      posts: rows.map((r) => ({
+      hasMore: rows.length > limit,
+      posts: rows.slice(0, limit).map((r) => ({
         id: r.id,
         title: r.title,
         category: r.category,
@@ -517,6 +591,8 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
         activityDate: r.activity_date,
         text: r.description,
         publishedAt: r.submitted_at,
+        // الاسم لا يخرج إلا إذا وافق الطالب صراحةً (والإعداد الافتراضي: الاسم الأول فقط).
+        author: r.author_name ? publicName(r.author_name, faculty.gallery?.nameDisplay) : null,
         image: `/api/gallery/${r.id}/image`,
       })),
     });
@@ -591,7 +667,7 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
       .get();
     const recent = db
       .prepare(
-        `SELECT r.*,u.name AS student_name,u.student_id,u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE period=? AND status!='draft' ORDER BY updated_at DESC LIMIT 6`,
+        `SELECT r.*,u.name AS student_name,${idDisplay('u.')} AS student_id,u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE period=? AND status!='draft' ORDER BY updated_at DESC LIMIT 6`,
       )
       .all(faculty.periodId);
     res.json({ counts, students, recent });
@@ -615,7 +691,7 @@ export function createApp(options: { dataDir?: string; demo?: boolean } = {}) {
     ];
     const rows = db
       .prepare(
-        `SELECT r.*,u.name AS student_name,u.student_id,u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE ${where} ORDER BY r.submitted_at DESC LIMIT ? OFFSET ?`,
+        `SELECT r.*,u.name AS student_name,${idDisplay('u.')} AS student_id,u.year FROM requests r JOIN users u ON u.id=r.user_id WHERE ${where} ORDER BY r.submitted_at DESC LIMIT ? OFFSET ?`,
       )
       .all(...params, limit, (page - 1) * limit);
     const total = db
