@@ -60,22 +60,10 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
       return false;
     }
   });
-  const [accounts, setAccounts] = useState<{ role: Role; email: string; password: string }[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => {
-    if (session.demo)
-      api('/demo-accounts')
-        .then((r) => setAccounts(r.accounts))
-        .catch(() => {});
-  }, [session.demo]);
   const choose = (value: Role) => {
     setRole(value);
-    const account = accounts.find((a) => a.role === value);
-    if (account) {
-      setEmail(account.email);
-      setPassword(account.password);
-    }
     setError('');
   };
   async function submit(e: FormEvent) {
@@ -140,7 +128,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             <div className="demo-login">
               <span>
                 <Sparkles size={15} />
-                جرّب المنظومة بحساب تجريبي
+                اختر نوع الحساب ثم أدخل بياناتك
               </span>
               <div className="role-tabs">
                 {(['student', 'moderator', 'admin'] as Role[]).map((r) => (
@@ -154,9 +142,6 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
                   </button>
                 ))}
               </div>
-              <button className="text-button" onClick={() => choose(role)}>
-                تعبئة بيانات الحساب التجريبي <ChevronLeft size={14} />
-              </button>
             </div>
           )}
           {expired && (

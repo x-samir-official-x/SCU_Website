@@ -1,3 +1,4 @@
+import { typeDemoCredentials } from './demo-login';
 import express from 'express';
 import { chromium, type Page } from 'playwright-core';
 import { browserExecutable } from '../server/browser';
@@ -33,7 +34,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 async function login(role = 'طالب') {
   await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: role, exact: true }).click();
-  await page.getByRole('button', { name: 'تعبئة بيانات الحساب التجريبي' }).click();
+  await typeDemoCredentials(page, role);
   await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
   await page.locator('.sidebar').waitFor();
   await page.waitForLoadState('networkidle');
