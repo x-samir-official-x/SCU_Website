@@ -16,6 +16,7 @@
     "test:browser": "tsx tests/browser.smoke.ts",
     "test:reset": "tsx tests/reset.smoke.ts",
     "test:splash": "tsx tests/splash.smoke.ts",
+    "test:session": "tsx tests/session.smoke.ts",
     "test:preview": "tsx tests/preview.smoke.ts",
     "test:gallery": "tsx tests/gallery.smoke.ts"
   },
