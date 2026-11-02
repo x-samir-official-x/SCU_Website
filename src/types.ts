@@ -13,6 +13,9 @@ export interface User {
   avatar_v?: number;
   email_verified?: number;
   email_notifications?: number;
+  /** كلمة مرور مؤقتة: لا يعمل أي شيء قبل تغييرها. */
+  must_change?: boolean;
+  temp_expires_at?: number | null;
 }
 export interface Faculty {
   platformName: string;
@@ -33,7 +36,7 @@ export interface Session {
   csrfToken?: string;
   demo: boolean;
   preview?: boolean;
-  registration?: boolean;
+  tempPasswordHours?: number;
   emailEnabled?: boolean;
   faculty: Faculty;
 }

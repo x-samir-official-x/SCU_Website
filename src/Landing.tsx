@@ -11,13 +11,11 @@ import {
   ShieldCheck,
   Users,
   X,
-  Eye,
-  EyeOff,
+  Copy,
 } from 'lucide-react';
 import { api, logoSrc, useSession } from './lib';
 import type { GalleryPost } from './types';
-import { TERMS } from './terms';
-import { validateRegistration } from './registration';
+import { TERMS, normalizeDigits } from './terms';
 import { Ambient } from './Ambient';
 import { FloatingNav } from './FloatingNav';
 import { useCountUp, usePointerParallax, useReveal } from './hooks';
@@ -338,8 +336,8 @@ export function Landing() {
                   <span>{signedIn ? 'الذهاب إلى حسابي' : 'تسجيل الدخول'}</span>
                   <ArrowLeft size={19} />
                 </Link>
-                <Link to={signedIn ? '/community' : '/register'} className="px-btn px-btn-glass">
-                  <span>{signedIn ? 'استكشف أنشطة الطلاب' : 'إنشاء حساب جديد'}</span>
+                <Link to={signedIn ? '/community' : '/activate'} className="px-btn px-btn-glass">
+                  <span>{signedIn ? 'استكشف أنشطة الطلاب' : 'إثبات هويتك'}</span>
                 </Link>
               </div>
               <a href="#activities" className="px-browse">
@@ -513,8 +511,8 @@ export function Landing() {
               <h2>خطوتك القادمة تبدأ هنا.</h2>
               <p>وثّق تجربتك، وخلّي مشاركتك جزءًا من حكاية الكلية.</p>
             </div>
-            <Link className="px-btn px-btn-light" to={signedIn ? '/dashboard' : '/register'}>
-              <span>{signedIn ? 'الذهاب إلى حسابي' : 'ابدأ بإنشاء حساب'}</span>
+            <Link className="px-btn px-btn-light" to={signedIn ? '/dashboard' : '/activate'}>
+              <span>{signedIn ? 'الذهاب إلى حسابي' : 'ابدأ بإثبات هويتك'}</span>
               <ArrowLeft size={19} />
             </Link>
           </div>
@@ -553,27 +551,43 @@ export function Landing() {
   );
 }
 
-export function Register() {
-  const { session, refresh } = useSession();
-  const navigate = useNavigate();
+const hoursLabel = (n: number) =>
+  n === 24
+    ? 'يوم واحد'
+    : n % 24 === 0 && n > 24
+      ? `${(n / 24).toLocaleString('ar-EG')} أيام`
+      : `${n.toLocaleString('ar-EG')} ساعة`;
+
+/** إثبات الهوية: الرقم القومي يُقارَن بسجل الكلية، وتظهر كلمة مرور مؤقتة مرة واحدة. */
+export function Claim() {
+  const { session } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [invalid, setInvalid] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState<{
+    temporaryPassword: string;
+    expiresAt: string;
+    hours: number;
+    firstName: string;
+  } | null>(null);
   const bad = (field: string) => (invalid === field ? true : undefined);
-  const open = Boolean(session.preview || session.registration);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const data = Object.fromEntries(form) as Record<string, unknown>;
-    data.accepted_terms = form.get('accepted_terms') === 'on';
-    // نفس قواعد الخادم، برسائل عربية بدل رسائل المتصفح الإنجليزية (التحقق النهائي في الخادم أيضًا).
-    const checked = validateRegistration(data);
-    if (!checked.ok) {
-      setError(checked.error);
-      setInvalid(checked.field ?? '');
-      // التركيز على الحقل المعنيّ (والتمرير إليه) بدل ترك الرسالة وحدها أسفل النموذج.
-      const field = checked.field ? event.currentTarget.elements.namedItem(checked.field) : null;
+    const national = normalizeDigits(form.get('national_id'));
+    const student = normalizeDigits(form.get('student_id'));
+    const problem = !/^[0-9]{14}$/.test(national)
+      ? (['national_id', 'الرقم القومي ١٤ رقمًا.'] as const)
+      : student && !/^[0-9]{4,20}$/.test(student)
+        ? (['student_id', 'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.'] as const)
+        : form.get('accepted_terms') !== 'on'
+          ? (['accepted_terms', 'يجب الموافقة على الشروط للمتابعة.'] as const)
+          : null;
+    if (problem) {
+      setError(problem[1]);
+      setInvalid(problem[0]);
+      const field = event.currentTarget.elements.namedItem(problem[0]);
       if (field instanceof HTMLElement) field.focus();
       return;
     }
@@ -581,14 +595,36 @@ export function Register() {
     setBusy(true);
     setError('');
     try {
-      await api('/register', { method: 'POST', body: JSON.stringify(data) });
-      await refresh();
-      navigate('/dashboard');
+      setResult(
+        await api('/claim', {
+          method: 'POST',
+          body: JSON.stringify({
+            national_id: national,
+            student_id: student || undefined,
+            accepted_terms: true,
+          }),
+        }),
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
+  }
+  async function copy() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.temporaryPassword);
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = result.temporaryPassword;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2500);
   }
   return (
     <main className="lp-register" id="main-content" tabIndex={-1}>
@@ -603,11 +639,49 @@ export function Register() {
           height="786"
           alt="شعار الجامعة والكلية"
         />
-        <span className="lp-kicker">أول خطوة في تجربتك</span>
-        <h1>إنشاء حساب طالب</h1>
-        {open ? (
+        {result ? (
+          <div className="lp-temp" role="status">
+            <span className="lp-kicker">تم التحقق من هويتك</span>
+            <h1>أهلًا {result.firstName}</h1>
+            <p>هذه كلمة المرور المؤقتة لحسابك. انسخها الآن، فلن تظهر مرة أخرى.</p>
+            <div className="lp-temp-code">
+              <code dir="ltr" aria-label="كلمة المرور المؤقتة">
+                {result.temporaryPassword}
+              </code>
+              <button type="button" className="lp-temp-copy" onClick={copy}>
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+                {copied ? 'تم النسخ' : 'نسخ'}
+              </button>
+            </div>
+            <div className="lp-temp-warn">
+              <ShieldCheck size={22} />
+              <p>
+                <strong>غيّر كلمة المرور خلال {hoursLabel(result.hours)}</strong> (قبل{' '}
+                {new Date(result.expiresAt).toLocaleString('ar-EG', {
+                  dateStyle: 'full',
+                  timeStyle: 'short',
+                })}
+                ). إن لم تفعل يُقفل التفعيل مؤقتًا وتثبت هويتك من جديد، وإن تكرر ذلك ٣ مرات فستحتاج
+                إلى التوجه لمكتب النشاط الطلابي.
+              </p>
+            </div>
+            <ol className="lp-temp-steps">
+              <li>سجّل الدخول برقمك القومي وكلمة المرور المؤقتة.</li>
+              <li>اختر كلمة مرور خاصة بك، وهي التي ستستخدمها بعد ذلك.</li>
+            </ol>
+            <Link className="lp-button lp-navy" to="/login">
+              الانتقال إلى تسجيل الدخول
+              <ArrowLeft size={18} />
+            </Link>
+          </div>
+        ) : (
           <>
-            <p>أنشئ حسابك لتسجيل نشاطك ومتابعة اعتماده.</p>
+            <span className="lp-kicker">أول خطوة في تجربتك</span>
+            <h1>إثبات هويتك</h1>
+            <p>
+              اكتب رقمك القومي لنتحقق من قيدك في سجلات الكلية، ثم نعطيك كلمة مرور مؤقتة لتسجيل
+              الدخول لأول مرة.
+            </p>
             <form
               onSubmit={submit}
               noValidate
@@ -615,104 +689,29 @@ export function Register() {
               onInput={() => invalid && setInvalid('')}
             >
               <label className="lp-span-2">
-                الاسم الكامل
+                الرقم القومي
                 <input
-                  name="name"
-                  required
-                  minLength={3}
-                  maxLength={100}
-                  autoComplete="name"
-                  aria-invalid={bad('name')}
-                />
-              </label>
-              <fieldset className="lp-ids lp-span-2">
-                <legend>اكتب أحد الرقمين على الأقل</legend>
-                <label>
-                  الرقم الجامعي (الموجود على الكارنيه)
-                  <input
-                    name="student_id"
-                    aria-invalid={bad('student_id')}
-                    inputMode="numeric"
-                    dir="ltr"
-                    maxLength={20}
-                    autoComplete="off"
-                  />
-                </label>
-                <label>
-                  الرقم القومي
-                  <input
-                    name="national_id"
-                    aria-invalid={bad('national_id')}
-                    inputMode="numeric"
-                    dir="ltr"
-                    maxLength={20}
-                    autoComplete="off"
-                  />
-                </label>
-                <small>يكفي واحد منهما، ويمكنك كتابة الاثنين. لا يظهر أي منهما لزوار الموقع.</small>
-              </fieldset>
-              <label>
-                البريد الإلكتروني
-                <input
-                  name="email"
-                  aria-invalid={bad('email')}
-                  type="email"
-                  required
-                  autoComplete="email"
-                  dir="ltr"
-                  maxLength={160}
-                />
-              </label>
-              <label>
-                رقم الموبايل (اختياري)
-                <input
-                  name="phone"
-                  aria-invalid={bad('phone')}
-                  type="tel"
-                  inputMode="tel"
+                  name="national_id"
+                  aria-invalid={bad('national_id')}
+                  inputMode="numeric"
                   dir="ltr"
                   maxLength={20}
-                  autoComplete="tel"
-                  placeholder="01xxxxxxxxx"
+                  autoComplete="off"
+                  required
                 />
-                <small>يراه الموظف المختص فقط، للتواصل بشأن طلبك.</small>
+                <small>١٤ رقمًا. لا يظهر لأي شخص ولا يُعرض في الموقع.</small>
               </label>
-              <label>
-                كلمة المرور
-                <span className="lp-password">
-                  <input
-                    name="password"
-                    aria-invalid={bad('password')}
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={8}
-                    maxLength={100}
-                    autoComplete="new-password"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    className="lp-password-toggle"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
-                    aria-pressed={showPassword}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </span>
-                <small>
-                  ٨ أحرف على الأقل، ولا تكون شائعة (مثل 12345678) ولا تحتوي بريدك أو رقمك.
-                  {session.preview ? ' لا تستخدم كلمة مرور حقيقية.' : ''}
-                </small>
-              </label>
-              <label>
-                الفرقة الدراسية
-                <select name="year" required aria-invalid={bad('year')}>
-                  <option value="">اختر الفرقة</option>
-                  {['الأولى', 'الثانية', 'الثالثة', 'الرابعة'].map((y) => (
-                    <option key={y}>الفرقة {y}</option>
-                  ))}
-                </select>
+              <label className="lp-span-2">
+                الرقم الجامعي (اختياري)
+                <input
+                  name="student_id"
+                  aria-invalid={bad('student_id')}
+                  inputMode="numeric"
+                  dir="ltr"
+                  maxLength={20}
+                  autoComplete="off"
+                />
+                <small>إذا ضاع الكارنيه فالرقم القومي يكفي.</small>
               </label>
               <details className="lp-terms lp-span-2">
                 <summary>اقرأ شروط الاستخدام</summary>
@@ -743,24 +742,11 @@ export function Register() {
                 </p>
               )}
               <button className="lp-button lp-navy lp-span-2" disabled={busy}>
-                {busy ? 'جارٍ إنشاء الحساب…' : 'إنشاء الحساب'}
+                {busy ? 'جارٍ التحقق…' : 'تحقق وأصدر كلمة المرور المؤقتة'}
                 <ArrowLeft size={18} />
               </button>
             </form>
           </>
-        ) : (
-          <div className="lp-registration-notice">
-            <ShieldCheck size={30} />
-            <h2>تفعيل التسجيل بعد اعتماد التحقق الجامعي</h2>
-            <p>
-              إنشاء الحسابات العامة غير متاح في نسخة الخادم الحالية. ستُفعّل وسيلة التسجيل المعتمدة
-              بعد التنسيق مع الكلية لضمان اقتصار الحسابات على طلابها.
-            </p>
-            <Link className="lp-button lp-navy" to="/login">
-              الدخول بحساب متاح
-              <ArrowLeft size={18} />
-            </Link>
-          </div>
         )}
         <p className="lp-register-login">
           عندك حساب بالفعل؟ <Link to="/login">تسجيل الدخول</Link>

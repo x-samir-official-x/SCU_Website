@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
-import { validateRegistration, weakPasswordReason } from '../src/registration';
+import { weakPasswordReason } from '../src/registration';
 
 async function boot(t: test.TestContext, env: Record<string, string | undefined> = {}) {
   const saved: Record<string, string | undefined> = {};
@@ -44,15 +44,7 @@ test('weak and personal passwords are rejected', () => {
   assert.ok(weakPasswordReason('aaaaaaaaaa'));
   assert.ok(weakPasswordReason('mona.ibrahim2026', 'mona.ibrahim@example.test'));
   assert.equal(weakPasswordReason('كلمة-سر-طويلة-٢٠٢٦'), null);
-  const reg = validateRegistration({
-    name: 'منى إبراهيم',
-    email: 'mona@example.test',
-    password: 'qwertyui',
-    year: 'الفرقة الثانية',
-    student_id: '20261234',
-    accepted_terms: true,
-  });
-  assert.equal(reg.ok, false);
+  assert.ok(weakPasswordReason('qwertyui'));
 });
 
 test('session cookie is Secure by default in production and can be relaxed explicitly', async (t) => {

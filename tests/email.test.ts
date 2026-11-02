@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
+import { seedStudent } from './helpers';
 import path2 from 'node:path';
 import { mailerFromEnv, renderEmail, inlineAttachments } from '../server/mailer';
 
@@ -44,7 +45,6 @@ test('email verification and notification emails', async (t) => {
   const { app, db, flushMail } = createApp({
     dataDir: dir,
     demo: true,
-    registrationOpen: true,
     mailer,
   });
   const server: Server = await new Promise((resolve) => {
@@ -76,14 +76,16 @@ test('email verification and notification emails', async (t) => {
   const session = async (a: Acc) => await (await call('/session', a)).json();
 
   const mona = await acc(
-    await call('/register', undefined, 'POST', {
-      name: 'منى إبراهيم',
-      email: 'mona@example.test',
-      password: 'StrongPass1',
-      year: 'الفرقة الثانية',
-      student_id: '20261111',
-      accepted_terms: true,
-    }),
+    await seedStudent(
+      db,
+      (email, password) => call('/login', undefined, 'POST', { email, password }),
+      {
+        name: 'منى إبراهيم',
+        email: 'mona@example.test',
+        password: 'StrongPass1',
+        student_id: '20261111',
+      },
+    ),
   );
   const moderator = await acc(
     await call('/login', undefined, 'POST', {
@@ -95,7 +97,16 @@ test('email verification and notification emails', async (t) => {
     await call('/login', undefined, 'POST', { email: 'admin@demo.local', password: 'Demo2026!' }),
   );
 
-  await t.test('registration sends one verification email with a working link', async () => {
+  await t.test('adding an email sends one verification email with a working link', async () => {
+    assert.equal(
+      (
+        await call('/profile/email', mona, 'PUT', {
+          email: 'mona@example.test',
+          password: 'StrongPass1',
+        })
+      ).status,
+      200,
+    );
     await flushMail();
     assert.equal(sent.length, 1);
     assert.equal(sent[0].to, 'mona@example.test');

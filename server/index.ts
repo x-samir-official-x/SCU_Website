@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { z } from 'zod';
-import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,13 +13,9 @@ import { sanitizeGalleryImage, publicName } from './gallery';
 import { createOcr } from './ocr';
 import { mailerFromEnv, renderEmail, inlineAttachments, type Mailer } from './mailer';
 import { checkCertificate } from '../src/certificate';
-import {
-  weakPasswordReason,
-  validateRegistration,
-  validatePhone,
-  YEARS,
-} from '../src/registration';
-import { normalizeDigits } from '../src/terms';
+import { weakPasswordReason, validatePhone, YEARS } from '../src/registration';
+import { validateRosterRow, isPlaceholderEmail, NO_EMAIL_DOMAIN } from '../src/roster';
+import { normalizeDigits, TERMS_VERSION } from '../src/terms';
 import type { ActivityRequest, Role, User } from '../src/types';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -39,7 +35,23 @@ class HttpError extends Error {
 function assert(value: unknown, status: number, message: string): asserts value {
   if (!value) throw new HttpError(status, message);
 }
-const credentials = z.object({ email: z.email().max(180), password: z.string().min(1).max(128) });
+// «email» يقبل البريد الإلكتروني أو الرقم القومي (حسابات الطلاب المفعّلة من سجل الكلية).
+const credentials = z.object({
+  email: z.string().trim().min(3).max(180),
+  password: z.string().min(1).max(128),
+});
+const TEMP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // بلا I/O/0/1 لتجنب اللبس
+/** كلمة مرور مؤقتة عشوائية (١٢ حرفًا ≈ ٦٠ بت) بصيغة ABCD-EFGH-JKLM. */
+const makeTempPassword = () => {
+  const c = Array.from({ length: 12 }, () => TEMP_ALPHABET[randomInt(TEMP_ALPHABET.length)]);
+  return [c.slice(0, 4), c.slice(4, 8), c.slice(8)].map((g) => g.join('')).join('-');
+};
+/** يقبل المؤقتة بأي حالة أحرف وبدون الشرطات فيعيدها لصيغتها ABCD-EFGH-JKLM. */
+const normalizeTemp = (v: string) => {
+  const n = v.replace(/[\s-]/g, '').toUpperCase();
+  return n.length === 12 ? `${n.slice(0, 4)}-${n.slice(4, 8)}-${n.slice(8)}` : n;
+};
+const MAX_TEMP_EXPIRIES = 3;
 const draftSchema = z.object({
   title: z.string().trim().max(120),
   category: z.string().max(80),
@@ -70,7 +82,6 @@ export function createApp(
   options: {
     dataDir?: string;
     demo?: boolean;
-    registrationOpen?: boolean;
     mailer?: Mailer | null;
   } = {},
 ) {
@@ -81,8 +92,8 @@ export function createApp(
   const db = openDatabase(dataDir, demo);
   mkdirSync(uploadDir, { recursive: true, mode: 0o700 });
   mkdirSync(formDir, { recursive: true, mode: 0o700 });
-  // التسجيل العام مقفول افتراضيًا حتى يُعتمد التحقق الجامعي. للتفعيل: REGISTRATION_OPEN=true
-  const registrationOpen = options.registrationOpen ?? process.env.REGISTRATION_OPEN === 'true';
+  // مدة صلاحية كلمة المرور المؤقتة بالساعات (يلزم تغييرها قبل انتهائها وإلا يُقفل التفعيل).
+  const tempHours = Math.max(1, Number(process.env.TEMP_PASSWORD_HOURS) || 72);
   const mailer = options.mailer === undefined ? mailerFromEnv() : options.mailer;
   const siteOrigin = (
     process.env.APP_ORIGIN || `http://localhost:${process.env.PORT || 3001}`
@@ -153,13 +164,39 @@ export function createApp(
     if (cookie && /^[a-f0-9]{64}$/.test(cookie)) {
       const session = db
         .prepare(
-          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed,u.phone,u.avatar_v,(u.email_verified_at IS NOT NULL) AS email_verified,u.email_notifications FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
+          `SELECT s.csrf, u.id,u.name,u.email,u.role,${idDisplay('u.')} AS student_id,u.year,u.active,u.onboarding_dismissed,u.phone,u.avatar_v,(u.email_verified_at IS NOT NULL) AS email_verified,u.email_notifications,u.must_change_password,u.temp_expires_at,u.temp_expiries,u.locked_reason FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1`,
         )
-        .get(hash(cookie), Date.now());
+        .get(hash(cookie), Date.now()) as
+        | (Record<string, unknown> & {
+            id: number;
+            email: string;
+            csrf: string;
+            must_change_password: number;
+            temp_expires_at: number | null;
+            temp_expiries: number;
+            locked_reason: string | null;
+          })
+        | undefined;
       if (session) {
-        const { csrf, ...user } = session;
-        res.locals.user = user;
-        res.locals.csrf = csrf;
+        const {
+          csrf,
+          must_change_password,
+          temp_expires_at,
+          temp_expiries: _expiries,
+          locked_reason,
+          ...user
+        } = session;
+        const lockedNow = locked_reason || settleExpiredTemp(session);
+        if (!lockedNow) {
+          res.locals.user = {
+            ...user,
+            // الحساب الوهمي (بلا بريد) لا يُعرض كبريد.
+            email: isPlaceholderEmail(user.email) ? '' : user.email,
+            must_change: Boolean(must_change_password),
+            temp_expires_at: must_change_password ? temp_expires_at : null,
+          };
+          res.locals.csrf = csrf;
+        }
       }
     }
     next();
@@ -191,6 +228,16 @@ export function createApp(
     if (!req.is('application/json') && !req.is('multipart/form-data'))
       return next(new HttpError(415, 'صيغة الطلب غير مدعومة.'));
     next();
+  });
+
+  // حساب بكلمة مرور مؤقتة لا يفعل أي شيء قبل أن يختار كلمة مرور خاصة به.
+  app.use('/api', (req, res, next) => {
+    if (!res.locals.user?.must_change) return next();
+    const open =
+      (req.method === 'POST' && req.path === '/logout') ||
+      (req.method === 'PUT' && ['/profile/first-password', '/profile/password'].includes(req.path));
+    if (open || (req.method === 'GET' && ['/session', '/health'].includes(req.path))) return next();
+    next(new HttpError(403, 'يجب اختيار كلمة مرور خاصة بك أولًا قبل متابعة استخدام الحساب.'));
   });
 
   const log = (actor: number, requestId: number | null, action: string, note = '') =>
@@ -227,7 +274,7 @@ export function createApp(
     subject: string,
     body: { text: string; html: string },
   ) => {
-    if (!mailer) return;
+    if (!mailer || isPlaceholderEmail(to)) return;
     db.prepare(
       'INSERT INTO email_outbox (kind,to_addr,subject,text,html,created_at) VALUES (?,?,?,?,?,?)',
     ).run(kind, to, subject, body.text, body.html, Date.now());
@@ -417,6 +464,66 @@ export function createApp(
       throw e;
     }
   };
+  /** تنتهي مهلة كلمة المرور المؤقتة مرة واحدة: يُقفل الحساب مؤقتًا، وعند الثالثة يلزم موظف. */
+  function settleExpiredTemp(u: {
+    id: number;
+    must_change_password: number;
+    temp_expires_at: number | null;
+    temp_expiries: number;
+    locked_reason: string | null;
+  }): string | null {
+    if (u.locked_reason) return u.locked_reason;
+    if (!u.must_change_password || !u.temp_expires_at || u.temp_expires_at > Date.now())
+      return null;
+    const count = u.temp_expiries + 1;
+    const reason = count >= MAX_TEMP_EXPIRIES ? 'staff' : 'expired';
+    db.prepare('UPDATE users SET temp_expiries=?,locked_reason=? WHERE id=?').run(
+      count,
+      reason,
+      u.id,
+    );
+    db.prepare('DELETE FROM sessions WHERE user_id=?').run(u.id);
+    return reason;
+  }
+  /** يضع كلمة مرور مؤقتة جديدة (مشفرة) ويُرجع النص الصريح لمرة واحدة فقط. */
+  function issueTempPassword(userId: number) {
+    const password = makeTempPassword();
+    const expiresAt = Date.now() + tempHours * 3600 * 1000;
+    db.prepare(
+      'UPDATE users SET password_hash=?,must_change_password=1,temp_expires_at=?,locked_reason=NULL WHERE id=?',
+    ).run(hashPassword(password), expiresAt, userId);
+    db.prepare('DELETE FROM sessions WHERE user_id=?').run(userId);
+    return { password, expiresAt };
+  }
+  type RosterEntry = {
+    id: number;
+    national_id: string;
+    student_id: string | null;
+    name: string;
+    year: string | null;
+  };
+  /** ينشئ حساب طالب من سجل الكلية (بلا بريد) ويُرجع رقمه. */
+  function createStudentFromRoster(r: RosterEntry, acceptTerms: boolean) {
+    const idTaken = r.student_id
+      ? db.prepare('SELECT 1 AS x FROM users WHERE student_id=?').get(r.student_id)
+      : null;
+    const result = db
+      .prepare(
+        "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at) VALUES (?,?,?,'student',?,?,?,?,?,?)",
+      )
+      .run(
+        r.name,
+        `${r.national_id}@${NO_EMAIL_DOMAIN}`,
+        hashPassword(randomBytes(24).toString('hex')),
+        idTaken ? null : r.student_id,
+        r.national_id,
+        r.year,
+        now(),
+        acceptTerms ? TERMS_VERSION : null,
+        acceptTerms ? now() : null,
+      );
+    return Number(result.lastInsertRowid);
+  }
   function getRequest(id: number, user: User) {
     const r = db
       .prepare(
@@ -486,7 +593,7 @@ export function createApp(
       csrfToken: res.locals.csrf,
       demo,
       faculty,
-      registration: registrationOpen,
+      tempPasswordHours: tempHours,
       emailEnabled: Boolean(mailer),
     }),
   );
@@ -544,57 +651,130 @@ export function createApp(
     }),
     (req, res) => {
       const input = credentials.parse(req.body);
-      const user = db
-        .prepare('SELECT * FROM users WHERE email=? COLLATE NOCASE AND active=1')
-        .get(input.email.trim()) as (User & { password_hash: string }) | undefined;
+      const identifier = input.email.trim();
+      const asNational = normalizeDigits(identifier);
+      type LoginRow = User & {
+        password_hash: string;
+        must_change_password: number;
+        temp_expires_at: number | null;
+        temp_expiries: number;
+        locked_reason: string | null;
+      };
+      const user = (
+        /^[0-9]{14}$/.test(asNational)
+          ? db.prepare('SELECT * FROM users WHERE national_id=? AND active=1').get(asNational)
+          : db
+              .prepare('SELECT * FROM users WHERE email=? COLLATE NOCASE AND active=1')
+              .get(identifier)
+      ) as LoginRow | undefined;
       const [salt, expected] = user?.password_hash.split(':') ?? ['dummy', '0'.repeat(128)];
-      const candidate = scryptSync(input.password, salt, 64);
+      const matches = (password: string) =>
+        timingSafeEqual(scryptSync(password, salt, 64), Buffer.from(expected, 'hex'));
+      // كلمة المرور المؤقتة تُقبل بأي حالة أحرف أو بدون الشرطات
+      const ok =
+        matches(input.password) ||
+        Boolean(user?.must_change_password && matches(normalizeTemp(input.password)));
+      assert(user && ok, 401, 'بيانات الدخول غير صحيحة. راجع الرقم القومي أو البريد وكلمة المرور.');
+      const locked = settleExpiredTemp(user);
       assert(
-        user && timingSafeEqual(candidate, Buffer.from(expected, 'hex')),
-        401,
-        'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+        !locked,
+        403,
+        locked === 'staff'
+          ? 'تكرر انتهاء مهلة كلمة المرور المؤقتة. توجّه إلى مكتب النشاط الطلابي لإصدار كلمة مرور جديدة.'
+          : 'انتهت مهلة كلمة المرور المؤقتة. أثبت هويتك من جديد من صفحة «إثبات هويتك» لإصدار كلمة مرور جديدة.',
       );
       startSession(res, user.id);
-      res.json({ ok: true });
+      res.json({ ok: true, mustChange: Boolean(user.must_change_password) });
     },
   );
+  /**
+   * إثبات الهوية: الطالب يكتب الرقم القومي (والجامعي اختياريًا) فيُقارَن بسجل الكلية.
+   * عند التطابق يُنشأ الحساب بكلمة مرور مؤقتة تظهر مرة واحدة. لا يُكشف أي بيان قبل التطابق.
+   */
+  const claimMismatch =
+    'بياناتك غير مطابقة لسجلات الكلية. راجع الأرقام، أو تواصل مع مكتب النشاط الطلابي.';
   app.post(
-    '/api/register',
+    '/api/claim',
     rateLimit({
       windowMs: 60 * 60 * 1000,
-      limit: 20,
-      message: { error: 'محاولات تسجيل كثيرة. يرجى المحاولة لاحقًا.' },
+      limit: 15,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا أو التواصل مع مكتب النشاط الطلابي.' },
+    }),
+    // حد لكل رقم قومي: يمنع تجريب أرقام الجامعي على رقم بعينه
+    rateLimit({
+      windowMs: 60 * 60 * 1000,
+      limit: 8,
+      standardHeaders: false,
+      legacyHeaders: false,
+      keyGenerator: (req) =>
+        `claim:${normalizeDigits((req.body as { national_id?: unknown } | undefined)?.national_id).slice(0, 20)}`,
+      validate: { keyGeneratorIpFallback: false },
+      message: { error: 'محاولات كثيرة على هذا الرقم. حاول بعد ساعة أو تواصل مع المكتب.' },
     }),
     (req, res) => {
-      assert(registrationOpen, 403, 'إنشاء الحسابات غير متاح حاليًا.');
-      const parsed = validateRegistration(req.body ?? {});
-      assert(parsed.ok, 400, parsed.ok ? '' : parsed.error);
-      const v = parsed.value;
-      const taken = db
+      const body = z
+        .object({
+          national_id: z.unknown(),
+          student_id: z.unknown().optional(),
+          accepted_terms: z.unknown().optional(),
+        })
+        .parse(req.body ?? {});
+      const national = normalizeDigits(body.national_id);
+      const student = normalizeDigits(body.student_id);
+      assert(/^[0-9]{14}$/.test(national), 400, 'الرقم القومي ١٤ رقمًا.');
+      assert(!student || /^[0-9]{4,20}$/.test(student), 400, 'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
+      assert(
+        body.accepted_terms === true || body.accepted_terms === 'on',
+        400,
+        'يجب الموافقة على الشروط للمتابعة.',
+      );
+      const entry = db.prepare('SELECT * FROM roster WHERE national_id=?').get(national) as
+        RosterEntry | undefined;
+      // الجامعي اختياري، لكن إن كُتب وكان مخالفًا لما في السجل نرفض بنفس الرسالة
+      assert(
+        entry && (!student || !entry.student_id || entry.student_id === student),
+        404,
+        claimMismatch,
+      );
+      type Existing = {
+        id: number;
+        active: number;
+        must_change_password: number;
+        temp_expires_at: number | null;
+        temp_expiries: number;
+        locked_reason: string | null;
+      };
+      const existing = db
         .prepare(
-          'SELECT 1 AS x FROM users WHERE email=? COLLATE NOCASE OR (? IS NOT NULL AND student_id=?) OR (? IS NOT NULL AND national_id=?)',
+          'SELECT id,active,must_change_password,temp_expires_at,temp_expiries,locked_reason FROM users WHERE national_id=?',
         )
-        .get(v.email, v.student_id, v.student_id, v.national_id, v.national_id);
-      assert(!taken, 409, 'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.');
-      const result = db
-        .prepare(
-          "INSERT INTO users (name,email,password_hash,role,student_id,national_id,year,created_at,terms_version,terms_accepted_at,phone) VALUES (?,?,?,'student',?,?,?,?,?,?,?)",
-        )
-        .run(
-          v.name,
-          v.email,
-          hashPassword(v.password),
-          v.student_id,
-          v.national_id,
-          v.year,
-          now(),
-          v.terms_version,
-          now(),
-          v.phone,
+        .get(national) as Existing | undefined;
+      let userId: number;
+      if (!existing) userId = createStudentFromRoster(entry, true);
+      else {
+        assert(existing.active === 1, 403, 'هذا الحساب موقوف. تواصل مع مكتب النشاط الطلابي.');
+        const locked = settleExpiredTemp(existing);
+        assert(
+          locked !== 'staff',
+          403,
+          'تكرر انتهاء المهلة. توجّه إلى مكتب النشاط الطلابي لإصدار كلمة مرور جديدة.',
         );
-      sendVerification(Number(result.lastInsertRowid));
-      startSession(res, Number(result.lastInsertRowid));
-      res.status(201).json({ ok: true });
+        assert(
+          locked === 'expired',
+          409,
+          existing.must_change_password
+            ? 'أُصدرت لك كلمة مرور مؤقتة ولم تنتهِ مدتها بعد. استخدمها لتسجيل الدخول، أو تواصل مع المكتب إن فُقدت.'
+            : 'هذا الحساب مفعّل بالفعل. سجّل الدخول بالرقم القومي وكلمة مرورك.',
+        );
+        userId = existing.id;
+      }
+      const issued = issueTempPassword(userId);
+      res.status(201).json({
+        temporaryPassword: issued.password,
+        expiresAt: new Date(issued.expiresAt).toISOString(),
+        hours: tempHours,
+        firstName: entry.name.split(' ')[0],
+      });
     },
   );
   const tokenHash = (req: Request) => {
@@ -634,7 +814,7 @@ export function createApp(
     res.json({
       profile: {
         name: row.name,
-        email: row.email,
+        email: isPlaceholderEmail(row.email) ? '' : row.email,
         phone: row.phone,
         year: row.year,
         idShown: user.student_id,
@@ -686,12 +866,21 @@ export function createApp(
       const input = z
         .object({ current: z.string().max(128), password: z.string().max(128) })
         .parse(req.body);
-      const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(user.id) as {
+      const row = db
+        .prepare(
+          'SELECT password_hash,student_id,national_id,must_change_password FROM users WHERE id=?',
+        )
+        .get(user.id) as {
         password_hash: string;
+        student_id: string | null;
+        national_id: string | null;
+        must_change_password: number;
       };
       const [salt, expected] = row.password_hash.split(':');
+      const same = (v: string) =>
+        timingSafeEqual(scryptSync(v, salt, 64), Buffer.from(expected, 'hex'));
       assert(
-        timingSafeEqual(scryptSync(input.current, salt, 64), Buffer.from(expected, 'hex')),
+        same(input.current) || (row.must_change_password && same(normalizeTemp(input.current))),
         403,
         'كلمة المرور الحالية غير صحيحة.',
       );
@@ -701,18 +890,68 @@ export function createApp(
         'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.',
       );
       assert(input.password !== input.current, 400, 'اختر كلمة مرور مختلفة عن الحالية.');
-      const weakChange = weakPasswordReason(input.password, user.email);
-      assert(!weakChange, 400, weakChange ?? '');
-      db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(
-        hashPassword(input.password),
-        user.id,
+      const weakChange = weakPasswordReason(
+        input.password,
+        user.email,
+        row.student_id,
+        row.national_id,
       );
+      assert(!weakChange, 400, weakChange ?? '');
+      db.prepare(
+        'UPDATE users SET password_hash=?,must_change_password=0,temp_expires_at=NULL,temp_expiries=0,locked_reason=NULL WHERE id=?',
+      ).run(hashPassword(input.password), user.id);
       // تُغلق كل الجلسات الأخرى؛ تبقى الجلسة الحالية فقط
       db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash!=?').run(
         user.id,
         tokenHash(req),
       );
       securityAlert(user.id, 'change');
+      res.json({ ok: true });
+    },
+  );
+  /** أول دخول بكلمة مؤقتة: الجلسة أُثبتت بها للتو، فلا نطلبها مرة ثانية. */
+  app.put(
+    '/api/profile/first-password',
+    auth,
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 20,
+      message: { error: 'محاولات كثيرة. يرجى المحاولة لاحقًا.' },
+    }),
+    (req, res) => {
+      const user: User & { must_change?: boolean } = res.locals.user;
+      assert(user.must_change, 409, 'كلمة مرورك خاصة بك بالفعل. غيّرها من ملفك الشخصي.');
+      const input = z.object({ password: z.string().max(128) }).parse(req.body);
+      assert(
+        input.password.length >= 8 && input.password.length <= 100,
+        400,
+        'كلمة المرور من ٨ إلى ١٠٠ حرف.',
+      );
+      const row = db
+        .prepare('SELECT password_hash,student_id,national_id FROM users WHERE id=?')
+        .get(user.id) as {
+        password_hash: string;
+        student_id: string | null;
+        national_id: string | null;
+      };
+      const [salt, expected] = row.password_hash.split(':');
+      assert(
+        !timingSafeEqual(
+          scryptSync(normalizeTemp(input.password), salt, 64),
+          Buffer.from(expected, 'hex'),
+        ) && !timingSafeEqual(scryptSync(input.password, salt, 64), Buffer.from(expected, 'hex')),
+        400,
+        'اختر كلمة مرور مختلفة عن المؤقتة.',
+      );
+      const weak = weakPasswordReason(input.password, user.email, row.student_id, row.national_id);
+      assert(!weak, 400, weak ?? '');
+      db.prepare(
+        'UPDATE users SET password_hash=?,must_change_password=0,temp_expires_at=NULL,temp_expiries=0,locked_reason=NULL WHERE id=?',
+      ).run(hashPassword(input.password), user.id);
+      db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash!=?').run(
+        user.id,
+        tokenHash(req),
+      );
       res.json({ ok: true });
     },
   );
@@ -1572,6 +1811,144 @@ export function createApp(
       );
     });
     res.json({ ok: true });
+  });
+  // ===== سجل الطلاب (الموظفون): بحث، وإصدار كلمة مرور مؤقتة عند الحاجة =====
+  type RosterListRow = {
+    id: number;
+    name: string;
+    year: string | null;
+    student_id: string | null;
+    national_id: string;
+    user_id: number | null;
+    must_change_password: number | null;
+    temp_expires_at: number | null;
+    temp_expiries: number | null;
+    locked_reason: string | null;
+    active: number | null;
+  };
+  const rosterState = (r: RosterListRow) => {
+    if (!r.user_id) return 'none';
+    if (!r.active) return 'disabled';
+    const locked =
+      r.locked_reason ||
+      (r.must_change_password && r.temp_expires_at && r.temp_expires_at <= Date.now()
+        ? (r.temp_expiries ?? 0) + 1 >= MAX_TEMP_EXPIRIES
+          ? 'staff'
+          : 'expired'
+        : null);
+    if (locked) return locked;
+    return r.must_change_password ? 'temp' : 'active';
+  };
+  app.get('/api/staff/roster', auth, staff, (req, res) => {
+    const q = normalizeDigits(String(req.query.q ?? '').slice(0, 60)) || '';
+    const text = String(req.query.q ?? '')
+      .trim()
+      .slice(0, 60);
+    const base = `SELECT r.id,r.name,r.year,r.student_id,r.national_id,u.id AS user_id,u.must_change_password,u.temp_expires_at,u.temp_expiries,u.locked_reason,u.active FROM roster r LEFT JOIN users u ON u.national_id=r.national_id`;
+    let rows: RosterListRow[];
+    if (!text) rows = db.prepare(`${base} ORDER BY r.name LIMIT 50`).all() as RosterListRow[];
+    else if (/^[0-9]{4,}$/.test(q))
+      // الرقم القومي كاملًا أو الجامعي؛ لا نبحث بجزء من القومي حتى لا يُستخدم للتنقيب
+      rows = db
+        .prepare(`${base} WHERE r.national_id=? OR r.student_id=? LIMIT 20`)
+        .all(q, q) as RosterListRow[];
+    else
+      rows = db
+        .prepare(`${base} WHERE r.name LIKE ? ESCAPE '\\' ORDER BY r.name LIMIT 50`)
+        .all(`%${text.replace(/[\\%_]/g, '\\$&')}%`) as RosterListRow[];
+    const total = (db.prepare('SELECT count(*) AS n FROM roster').get() as { n: number }).n;
+    const activated = (
+      db
+        .prepare(
+          'SELECT count(*) AS n FROM roster r JOIN users u ON u.national_id=r.national_id WHERE u.must_change_password=0',
+        )
+        .get() as { n: number }
+    ).n;
+    res.json({
+      total,
+      activated,
+      tempHours,
+      students: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        year: r.year,
+        studentId: r.student_id,
+        nationalLast4: r.national_id.slice(-4),
+        state: rosterState(r),
+      })),
+    });
+  });
+  app.post(
+    '/api/staff/roster/:id/temp-password',
+    auth,
+    staff,
+    rateLimit({
+      windowMs: 60 * 60 * 1000,
+      limit: 120,
+      message: { error: 'عدد كبير من الإصدارات. حاول لاحقًا.' },
+    }),
+    (req, res) => {
+      const id = parseId(String(req.params.id));
+      const entry = db.prepare('SELECT * FROM roster WHERE id=?').get(id) as
+        RosterEntry | undefined;
+      assert(entry, 404, 'الطالب غير موجود في السجل.');
+      const issued = transaction(() => {
+        const existing = db
+          .prepare('SELECT id,active FROM users WHERE national_id=?')
+          .get(entry.national_id) as { id: number; active: number } | undefined;
+        assert(!existing || existing.active === 1, 409, 'هذا الحساب موقوف.');
+        const userId = existing?.id ?? createStudentFromRoster(entry, false);
+        // الإصدار من الموظف يبدأ العدّ من جديد
+        db.prepare('UPDATE users SET temp_expiries=0 WHERE id=?').run(userId);
+        const result = issueTempPassword(userId);
+        log(
+          res.locals.user.id,
+          null,
+          'temp_password_issued',
+          `سجل الطلاب رقم ${entry.id} (الحساب رقم ${userId})`,
+        );
+        return result;
+      });
+      res.status(201).json({
+        temporaryPassword: issued.password,
+        expiresAt: new Date(issued.expiresAt).toISOString(),
+        hours: tempHours,
+        name: entry.name,
+      });
+    },
+  );
+  // استيراد السجل (المسؤول الرئيسي): دفعات صغيرة، والتحديث بالرقم القومي دون حذف أحد.
+  app.post('/api/admin/roster/import', auth, admin, (req, res) => {
+    const { rows } = z
+      .object({ rows: z.array(z.record(z.string(), z.unknown())).min(1).max(300) })
+      .parse(req.body);
+    let added = 0;
+    let updated = 0;
+    const rejected: { index: number; error: string }[] = [];
+    const find = db.prepare('SELECT id FROM roster WHERE national_id=?');
+    const insert = db.prepare(
+      'INSERT INTO roster (national_id,student_id,name,year,imported_at) VALUES (?,?,?,?,?)',
+    );
+    const update = db.prepare(
+      'UPDATE roster SET name=?,student_id=COALESCE(?,student_id),year=COALESCE(?,year) WHERE id=?',
+    );
+    transaction(() => {
+      rows.forEach((raw, index) => {
+        const parsed = validateRosterRow(raw);
+        if (!parsed.ok) return void rejected.push({ index, error: parsed.error });
+        const v = parsed.value;
+        const hit = find.get(v.national_id) as { id: number } | undefined;
+        if (hit) {
+          update.run(v.name, v.student_id, v.year, hit.id);
+          updated++;
+        } else {
+          insert.run(v.national_id, v.student_id, v.name, v.year, now());
+          added++;
+        }
+      });
+      log(res.locals.user.id, null, 'roster_import', `أُضيف ${added}، حُدّث ${updated}`);
+    });
+    res.json({ added, updated, rejected });
   });
   app.use('/api', (_req, res) => res.status(404).json({ error: 'المسار غير موجود.' }));
   if (existsSync(path.join(root, 'dist', 'index.html'))) {

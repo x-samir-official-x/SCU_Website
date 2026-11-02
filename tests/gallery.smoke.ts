@@ -1,4 +1,4 @@
-import { typeDemoCredentials } from './demo-login';
+import { typeDemoCredentials, claimAndActivate } from './demo-login';
 import express from 'express';
 import { chromium } from 'playwright-core';
 import { browserExecutable } from '../server/browser';
@@ -177,21 +177,15 @@ try {
   await page.waitForFunction(
     async () => (await (await fetch('/api/gallery')).json()).posts.length === 0,
   );
-  // تسجيل بالرقم القومي فقط: يُنشأ الحساب ولا يظهر الرقم كاملًا
+  // تفعيل بالرقم القومي فقط: يُنشأ الحساب ولا يظهر الرقم كاملًا
   const fresh = await browser.newContext();
   const reg = await fresh.newPage();
-  await reg.goto(`${base}/register`, { waitUntil: 'networkidle' });
-  await reg.getByLabel('الاسم الكامل').fill('منى إبراهيم');
-  await reg.getByLabel('الرقم القومي').fill('٢٩٩٠١٠١١٢٣٤٥٦٧');
-  await reg.getByLabel('البريد الإلكتروني').fill('mona@example.test');
-  await reg.getByLabel('كلمة المرور').fill('Example2026!');
-  await reg.getByLabel('الفرقة الدراسية').selectOption('الفرقة الثانية');
-  await reg.getByRole('checkbox', { name: /قرأت شروط الاستخدام/ }).check();
-  await reg.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await claimAndActivate(reg, base, { national: '٣٠٤٠١٠١١٢٠٠١٤١', password: 'Example2026!' });
   await reg.locator('.sidebar').waitFor();
   const me = await reg.evaluate(async () => (await (await fetch('/api/session')).json()).user);
-  assert.equal(me.student_id, 'ق.م ••••4567');
-  assert.ok(!JSON.stringify(me).includes('29901011234567'));
+  assert.equal(me.student_id, '20269001');
+  assert.equal(me.email, '');
+  assert.ok(!JSON.stringify(me).includes('30401011200141'));
   await fresh.close();
   assert.deepEqual(errors, []);
   console.log('Gallery browser workflow passed.');

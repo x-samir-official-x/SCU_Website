@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
+import { seedStudent } from './helpers';
 import { missionSteps } from '../src/mission';
 import type { ActivityRequest } from '../src/types';
 
@@ -58,7 +59,7 @@ test('mission steps follow the real request state', () => {
 
 test('student profile: privacy, ID upgrade, password change, sessions', async (t) => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-profile-'));
-  const { app, db } = createApp({ dataDir: dir, demo: true, registrationOpen: true });
+  const { app, db } = createApp({ dataDir: dir, demo: true });
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s));
   });
@@ -86,15 +87,17 @@ test('student profile: privacy, ID upgrade, password change, sessions', async (t
   const login = async (email: string, password: string) =>
     acc(await call('/login', undefined, 'POST', { email, password }));
 
-  const reg = await call('/register', undefined, 'POST', {
-    name: 'منى إبراهيم',
-    email: 'mona@example.test',
-    password: 'StrongPass1',
-    year: 'الفرقة الثانية',
-    national_id: '29901011234567',
-    accepted_terms: true,
-  });
-  assert.equal(reg.status, 201);
+  const reg = await seedStudent(
+    db,
+    (email, password) => call('/login', undefined, 'POST', { email, password }),
+    {
+      name: 'منى إبراهيم',
+      email: 'mona@example.test',
+      password: 'StrongPass1',
+      national_id: '29901011234567',
+    },
+  );
+  assert.equal(reg.status, 200);
   const mona = await acc(reg);
 
   await t.test('profile never exposes full IDs and starts with onboarding visible', async () => {

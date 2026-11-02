@@ -243,8 +243,12 @@ export function ProfilePage() {
                 <Mail size={14} aria-hidden="true" /> البريد الإلكتروني
               </dt>
               <dd>
-                <bdi dir="ltr">{profile.email}</bdi>
-                {session.emailEnabled && (
+                {profile.email ? (
+                  <bdi dir="ltr">{profile.email}</bdi>
+                ) : (
+                  <span className="muted">لم تضف بريدًا بعد</span>
+                )}
+                {session.emailEnabled && profile.email && (
                   <span className={`mail-state ${session.user?.email_verified ? 'is-ok' : ''}`}>
                     {session.user?.email_verified ? 'مؤكد' : 'غير مؤكد'}
                   </span>
@@ -419,7 +423,15 @@ export function ProfilePage() {
               </span>
             </label>
           )}
-          <h3 className="profile-sub">تغيير البريد الإلكتروني</h3>
+          <h3 className="profile-sub">
+            {profile.email ? 'تغيير البريد الإلكتروني' : 'إضافة بريد إلكتروني'}
+          </h3>
+          {!profile.email && (
+            <p className="muted small-text">
+              اختياري. يفيد في استعادة كلمة المرور بنفسك واستلام تنبيهات الموقع. بدونه تتواصل مع
+              مكتب النشاط الطلابي إذا نسيت كلمة المرور.
+            </p>
+          )}
           <form className="profile-form" onSubmit={changeEmail}>
             <label>
               البريد الجديد
@@ -444,7 +456,7 @@ export function ProfilePage() {
               />
             </label>
             <button className="button secondary" disabled={busy === 'email'}>
-              تغيير البريد
+              {profile.email ? 'تغيير البريد' : 'إضافة البريد'}
             </button>
           </form>
           <button

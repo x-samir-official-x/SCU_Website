@@ -1701,3 +1701,197 @@ tbody tr:hover .avatar {
     grid-column: 1 / -1;
   }
 }
+
+/* ===== إثبات الهوية وكلمة المرور المؤقتة ===== */
+.lp-temp {
+  display: grid;
+  gap: 16px;
+}
+.lp-temp-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px dashed var(--navy, #1d4b78);
+  border-radius: 14px;
+  background: #f4f8fd;
+}
+.lp-temp-code code {
+  font:
+    700 clamp(20px, 5vw, 28px) / 1.2 ui-monospace,
+    'SFMono-Regular',
+    Menlo,
+    Consolas,
+    monospace;
+  letter-spacing: 0.08em;
+  color: #11284a;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.lp-temp-copy,
+.lp-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.lp-temp-copy {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #1d4b78;
+  color: #fff;
+  font-weight: 700;
+}
+.lp-temp-copy:focus-visible,
+.lp-link-button:focus-visible {
+  outline: 3px solid #f1c24a;
+  outline-offset: 2px;
+}
+.lp-temp-warn {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #fff7e0;
+  border: 1px solid #f1d98a;
+  color: #4d3a05;
+}
+.lp-temp-warn svg {
+  flex: none;
+  margin-top: 2px;
+}
+.lp-temp-warn p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+.lp-temp-steps {
+  margin: 0;
+  padding-inline-start: 22px;
+  display: grid;
+  gap: 6px;
+  color: #3b4a62;
+}
+.lp-link-button {
+  border: 0;
+  background: none;
+  color: #1d4b78;
+  text-decoration: underline;
+  padding: 4px;
+}
+@media (max-width: 520px) {
+  .lp-temp-code {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .lp-temp-copy {
+    justify-content: center;
+  }
+}
+
+/* ===== سجل الطلاب (الموظفون) ===== */
+.roster-import {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.roster-import h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+.roster-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.roster-problems {
+  margin: 8px 0 0;
+  padding-inline-start: 18px;
+  font-size: 0.9rem;
+}
+.roster-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.roster-search > label {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--line, #d7dfeb);
+  border-radius: 12px;
+  background: #fff;
+}
+.roster-search > label svg {
+  flex: none;
+  color: #5b6b85;
+}
+.roster-search > label input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+}
+.roster-search > label:focus-within {
+  outline: 3px solid #f1c24a;
+  outline-offset: 1px;
+}
+.roster-name small {
+  display: block;
+  margin-top: 2px;
+}
+.lp-temp-steps {
+  list-style-type: arabic-indic;
+}
+.roster-state {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.roster-state.ok {
+  background: #e3f5ea;
+  color: #14683a;
+}
+.roster-state.wait {
+  background: #fff3d1;
+  color: #7a5a00;
+}
+.roster-state.alert {
+  background: #fde7e7;
+  color: #a02222;
+}
+.roster-state.idle {
+  background: #edf1f7;
+  color: #46556d;
+}
+.lp-register .lp-temp-warn {
+  margin: 4px 0 18px;
+}
+.roster-import {
+  padding: 22px 24px;
+}
+.roster-card {
+  padding: 18px;
+}
