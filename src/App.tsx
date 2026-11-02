@@ -43,7 +43,9 @@ import { NotificationBell } from './NotificationBell';
 import { StaffDashboard, RequestList, ReviewPage, StaffPage } from './Staff';
 
 import { BrandMark as Mark, AcademicSeal, LoginProcess } from './Brand';
-import { Landing, Register, ActivityGallery } from './Landing';
+import { Landing, Claim, ActivityGallery } from './Landing';
+import { ForcePassword } from './ForcePassword';
+import { RosterPage } from './Roster';
 
 function Login({ session, refresh }: { session: Session; refresh: () => Promise<void> }) {
   const [email, setEmail] = useState('');
@@ -69,7 +71,7 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    if (!email.trim()) return setError('اكتب بريدك الإلكتروني.');
+    if (!email.trim()) return setError('اكتب رقمك القومي أو بريدك الإلكتروني.');
     if (!password) return setError('اكتب كلمة المرور.');
     setBusy(true);
     try {
@@ -151,17 +153,18 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
           )}
           <form onSubmit={submit} noValidate>
             <label>
-              البريد الإلكتروني
+              الرقم القومي أو البريد الإلكتروني
               <input
                 dir="ltr"
-                type="email"
+                type="text"
+                inputMode="email"
                 required
                 autoComplete="username"
                 name="email"
                 spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.edu"
+                placeholder="الرقم القومي أو name@example.edu"
               />
             </label>
             <label>
@@ -193,11 +196,14 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             </button>
           </form>
           <p className="lp-login-register">
-            أول مرة تزورنا؟ <Link to="/register">إنشاء حساب جديد</Link>
+            أول مرة تزورنا؟ <Link to="/activate">إثبات هويتك</Link>
           </p>
           <div className="login-security">
             <ShieldCheck size={17} />
-            <p>الدخول الرسمي للطلاب يُفعّل بعد اعتماد آلية التحقق والربط مع الجامعة.</p>
+            <p>
+              رقمك القومي لا يظهر لأحد، وكلمات المرور تُحفظ مشفّرة. أول مرة؟ أثبت هويتك لتحصل على
+              كلمة مرور مؤقتة.
+            </p>
           </div>
         </div>
         <footer className="login-copyright">
@@ -251,6 +257,7 @@ function Shell() {
     : [
         { path: '/dashboard', label: 'نظرة عامة', icon: LayoutDashboard },
         { path: '/requests', label: 'طلبات الأنشطة', icon: ClipboardCheck },
+        { path: '/roster', label: 'سجل الطلاب', icon: GraduationCap },
         ...(user.role === 'admin'
           ? [{ path: '/staff', label: 'إدارة الموظفين', icon: Users }]
           : []),
@@ -439,6 +446,7 @@ function Shell() {
                 <>
                   <Route path="/requests" element={<RequestList />} />
                   <Route path="/requests/:id" element={<ReviewPage />} />
+                  <Route path="/roster" element={<RosterPage />} />
                   {user.role === 'admin' && <Route path="/staff" element={<StaffPage />} />}
                 </>
               )}
@@ -581,28 +589,36 @@ export default function App() {
         <a href="#main-content" className="skip-link">
           انتقل إلى المحتوى
         </a>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/welcome" element={<Landing />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route
-            path="/login"
-            element={
-              session.user ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Login session={session} refresh={refresh} />
-              )
-            }
-          />
-          <Route
-            path="/register"
-            element={session.user ? <Navigate to="/dashboard" replace /> : <Register />}
-          />
-          <Route path="/*" element={session.user ? <Shell /> : <Navigate to="/login" replace />} />
-        </Routes>
+        {session.user?.must_change ? (
+          <ForcePassword />
+        ) : (
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/welcome" element={<Landing />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route
+              path="/login"
+              element={
+                session.user ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <Login session={session} refresh={refresh} />
+                )
+              }
+            />
+            <Route
+              path="/activate"
+              element={session.user ? <Navigate to="/dashboard" replace /> : <Claim />}
+            />
+            <Route path="/register" element={<Navigate to="/activate" replace />} />
+            <Route
+              path="/*"
+              element={session.user ? <Shell /> : <Navigate to="/login" replace />}
+            />
+          </Routes>
+        )}
       </SessionContext.Provider>
     </ToastProvider>
   );

@@ -12,10 +12,78 @@ const fail = (condition, status, message) => {
 /* الحساب يحمل رقمًا جامعيًا أو قوميًا (واحد على الأقل). للعرض: الجامعي، وإلا آخر ٤ أرقام من القومي. */
 const idShown = (u) =>
   u.student_id || (u.national_id ? 'ق.م ••••' + String(u.national_id).slice(-4) : null);
-const cleanUser = ({ password, national_id, avatar_blob, ...user }) => ({
+const NO_EMAIL = '@no-email.invalid';
+const isPlaceholder = (email) =>
+  String(email || '')
+    .toLowerCase()
+    .endsWith(NO_EMAIL);
+const TEMP_HOURS = 72;
+const MAX_EXPIRIES = 3;
+const cleanUser = ({
+  password,
+  national_id,
+  avatar_blob,
+  temp_expiries,
+  locked_reason,
+  must_change_password,
+  temp_expires_at,
+  ...user
+}) => ({
   ...user,
+  email: isPlaceholder(user.email) ? '' : user.email,
+  must_change: Boolean(must_change_password),
+  temp_expires_at: must_change_password ? temp_expires_at : null,
   student_id: idShown({ ...user, national_id }),
 });
+/* يجب أن يطابق منطق الخادم (server/index.ts): كلمة مؤقتة، مهلة، قفل، ثم موظف. */
+const TEMP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const makeTempPassword = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const c = [...bytes].map((b) => TEMP_ALPHABET[b % TEMP_ALPHABET.length]);
+  return [c.slice(0, 4), c.slice(4, 8), c.slice(8)].map((g) => g.join('')).join('-');
+};
+const normalizeTemp = (v) => {
+  const n = String(v ?? '')
+    .replace(/[\s-]/g, '')
+    .toUpperCase();
+  return n.length === 12 ? `${n.slice(0, 4)}-${n.slice(4, 8)}-${n.slice(8)}` : n;
+};
+const settleExpired = (u) => {
+  if (u.locked_reason) return u.locked_reason;
+  if (!u.must_change_password || !u.temp_expires_at || u.temp_expires_at > Date.now()) return null;
+  u.temp_expiries = (u.temp_expiries || 0) + 1;
+  u.locked_reason = u.temp_expiries >= MAX_EXPIRIES ? 'staff' : 'expired';
+  return u.locked_reason;
+};
+const issueTemp = (u) => {
+  const password = makeTempPassword();
+  u.password = password;
+  u.must_change_password = 1;
+  u.temp_expires_at = Date.now() + TEMP_HOURS * 3600 * 1000;
+  u.locked_reason = null;
+  return { password, expiresAt: new Date(u.temp_expires_at).toISOString() };
+};
+const DEMO_ROSTER = [
+  ['منى إبراهيم السيد', '30401011200141', '20269001', 'الفرقة الثانية'],
+  ['كريم حسن عبد الله', '30311121200172', '20269002', 'الفرقة الثالثة'],
+  ['هدى محمود فتحي', '30507201200215', null, 'الفرقة الأولى'],
+  ['ياسين طارق مصطفى', '30209091200333', '20269004', 'الفرقة الرابعة'],
+];
+const seedRoster = (users) => {
+  const rows = users
+    .filter((u) => u.role === 'student')
+    .map((u) => [u.name, u.national_id, u.student_id, u.year])
+    .concat(DEMO_ROSTER);
+  return rows.map(([name, national_id, student_id, year], i) => ({
+    id: i + 1,
+    name,
+    national_id,
+    student_id,
+    year,
+  }));
+};
+const claimMismatch =
+  'بياناتك غير مطابقة لسجلات الكلية. راجع الأرقام، أو تواصل مع مكتب النشاط الطلابي.';
 const YEARS = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'];
 /* يجب أن يطابق validatePhone في src/registration.ts */
 const validatePhone = (input) => {
@@ -132,7 +200,15 @@ function initialState(faculty) {
       },
     ],
   }));
-  return { users, requests, activeUser: null, nextRequest: 5, nextAttachment: 1, nextUser: 8 };
+  return {
+    users,
+    requests,
+    roster: seedRoster(users),
+    activeUser: null,
+    nextRequest: 5,
+    nextAttachment: 1,
+    nextUser: 8,
+  };
 }
 async function withState(faculty, operation) {
   const db = await new Promise((resolve, reject) => {
@@ -150,6 +226,8 @@ async function withState(faculty, operation) {
       read.onsuccess = () => {
         try {
           const state = read.result || initialState(faculty);
+          // معاينات محفوظة قبل «إثبات الهوية» تحصل على السجل دون فقد بياناتها
+          state.roster ||= seedRoster(state.users);
           result = operation(state);
           store.put(state, 'portal');
         } catch (error) {
@@ -229,7 +307,11 @@ async function handle(request, url) {
       } else input = await request.json();
     }
     return await withState(faculty, (state) => {
-      const user = state.users.find((u) => u.id === state.activeUser && u.active);
+      let user = state.users.find((u) => u.id === state.activeUser && u.active);
+      if (user && settleExpired(user)) {
+        state.activeUser = null;
+        user = undefined;
+      }
       if (route === '/health') return json({ status: 'ok', demo: true, preview: true });
       if (route === '/session')
         return json({
@@ -237,7 +319,7 @@ async function handle(request, url) {
           csrfToken: 'browser-demo-only',
           demo: true,
           preview: true,
-          registration: true,
+          tempPasswordHours: TEMP_HOURS,
           emailEnabled: false,
           faculty,
         });
@@ -287,90 +369,136 @@ async function handle(request, url) {
             password: 'Demo2026!',
           })),
         });
-      if (route === '/register' && method === 'POST') {
-        const name = String(input.name || '').trim();
-        const email = String(input.email || '')
-          .trim()
-          .toLowerCase();
-        const studentId = normalizeDigits(input.student_id);
-        const nationalId = normalizeDigits(input.national_id);
-        const password = String(input.password || '');
-        const years = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'];
-        fail(name.length >= 3 && name.length <= 100, 400, 'اكتب اسمًا من ٣ إلى ١٠٠ حرف.');
-        fail(
-          email.length <= 160 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
-          400,
-          'راجع البريد الإلكتروني.',
-        );
-        fail(
-          studentId || nationalId,
-          400,
-          'اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي. يكفي واحد منهما.',
-        );
-        fail(
-          !studentId || /^[0-9]{4,20}$/.test(studentId),
-          400,
-          'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.',
-        );
-        fail(!nationalId || /^[0-9]{14}$/.test(nationalId), 400, 'الرقم القومي ١٤ رقمًا.');
-        fail(password.length >= 8 && password.length <= 100, 400, 'كلمة المرور من ٨ إلى ١٠٠ حرف.');
-        fail(years.includes(input.year), 400, 'اختر الفرقة الدراسية.');
+      if (route === '/claim' && method === 'POST') {
+        const national = normalizeDigits(input.national_id);
+        const student = normalizeDigits(input.student_id);
+        fail(/^[0-9]{14}$/.test(national), 400, 'الرقم القومي ١٤ رقمًا.');
+        fail(!student || /^[0-9]{4,20}$/.test(student), 400, 'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.');
         fail(
           input.accepted_terms === true || input.accepted_terms === 'on',
           400,
-          'يجب الموافقة على الشروط لإنشاء الحساب.',
+          'يجب الموافقة على الشروط للمتابعة.',
         );
+        const entry = state.roster.find((r) => r.national_id === national);
         fail(
-          !state.users.some(
-            (u) =>
-              u.email.toLowerCase() === email ||
-              (studentId && u.student_id === studentId) ||
-              (nationalId && u.national_id === nationalId),
-          ),
-          409,
-          'البريد الإلكتروني أو الرقم الجامعي أو القومي مستخدم بالفعل.',
+          entry && (!student || !entry.student_id || entry.student_id === student),
+          404,
+          claimMismatch,
         );
-        const id = state.nextUser++;
-        const phone = validatePhone(input.phone);
-        fail(phone.ok, 400, phone.error);
-        state.users.push({
-          id,
-          name,
-          email,
-          phone: phone.value,
-          student_id: studentId || null,
-          password,
-          year: input.year,
-          national_id: nationalId || null,
-          role: 'student',
-          active: 1,
-          created_at: stamp(),
-          terms_version: TERMS_VERSION,
-          terms_accepted_at: stamp(),
-        });
-        state.activeUser = id;
-        return json({ ok: true }, 201);
+        let account = state.users.find((u) => u.national_id === national);
+        if (!account) {
+          const idTaken =
+            entry.student_id && state.users.some((u) => u.student_id === entry.student_id);
+          account = {
+            id: state.nextUser++,
+            name: entry.name,
+            email: national + NO_EMAIL,
+            student_id: idTaken ? null : entry.student_id,
+            national_id: national,
+            year: entry.year,
+            role: 'student',
+            active: 1,
+            created_at: stamp(),
+            terms_version: TERMS_VERSION,
+            terms_accepted_at: stamp(),
+            temp_expiries: 0,
+          };
+          state.users.push(account);
+        } else {
+          fail(account.active, 403, 'هذا الحساب موقوف. تواصل مع مكتب النشاط الطلابي.');
+          const locked = settleExpired(account);
+          fail(
+            locked !== 'staff',
+            403,
+            'تكرر انتهاء المهلة. توجّه إلى مكتب النشاط الطلابي لإصدار كلمة مرور جديدة.',
+          );
+          fail(
+            locked === 'expired',
+            409,
+            account.must_change_password
+              ? 'أُصدرت لك كلمة مرور مؤقتة ولم تنتهِ مدتها بعد. استخدمها لتسجيل الدخول، أو تواصل مع المكتب إن فُقدت.'
+              : 'هذا الحساب مفعّل بالفعل. سجّل الدخول بالرقم القومي وكلمة مرورك.',
+          );
+        }
+        const issued = issueTemp(account);
+        return json(
+          {
+            temporaryPassword: issued.password,
+            expiresAt: issued.expiresAt,
+            hours: TEMP_HOURS,
+            firstName: entry.name.split(' ')[0],
+          },
+          201,
+        );
       }
       if (route === '/login' && method === 'POST') {
+        const ident = String(input.email || '').trim();
+        const asNational = normalizeDigits(ident);
         const found = state.users.find(
           (u) =>
-            u.email.toLowerCase() ===
-              String(input.email || '')
-                .trim()
-                .toLowerCase() &&
-            u.password === input.password &&
-            u.active,
+            u.active &&
+            (/^[0-9]{14}$/.test(asNational)
+              ? u.national_id === asNational
+              : u.email.toLowerCase() === ident.toLowerCase()),
         );
-        fail(found, 401, 'البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+        const typed = String(input.password || '');
+        fail(
+          found &&
+            (found.password === typed ||
+              (found.must_change_password && found.password === normalizeTemp(typed))),
+          401,
+          'بيانات الدخول غير صحيحة. راجع الرقم القومي أو البريد وكلمة المرور.',
+        );
+        const locked = settleExpired(found);
+        fail(
+          !locked,
+          403,
+          locked === 'staff'
+            ? 'تكرر انتهاء مهلة كلمة المرور المؤقتة. توجّه إلى مكتب النشاط الطلابي لإصدار كلمة مرور جديدة.'
+            : 'انتهت مهلة كلمة المرور المؤقتة. أثبت هويتك من جديد من صفحة «إثبات هويتك» لإصدار كلمة مرور جديدة.',
+        );
         state.activeUser = found.id;
-        return json({ ok: true });
+        return json({ ok: true, mustChange: Boolean(found.must_change_password) });
       }
       fail(user, 401, 'يرجى تسجيل الدخول أولًا.');
       if (route === '/logout' && method === 'POST') {
         state.activeUser = null;
         return json({ ok: true });
       }
+      if (user.must_change_password) {
+        const open =
+          (method === 'PUT' && ['/profile/first-password', '/profile/password'].includes(route)) ||
+          (method === 'GET' && ['/session', '/health'].includes(route));
+        fail(open, 403, 'يجب اختيار كلمة مرور خاصة بك أولًا قبل متابعة استخدام الحساب.');
+      }
       const studentOnly = () => fail(user.role === 'student', 403, 'هذه الصفحة للطلاب فقط.');
+      if (route === '/profile/first-password' && method === 'PUT') {
+        fail(user.must_change_password, 409, 'كلمة مرورك خاصة بك بالفعل. غيّرها من ملفك الشخصي.');
+        const next = String(input.password || '');
+        fail(next.length >= 8 && next.length <= 100, 400, 'كلمة المرور من ٨ إلى ١٠٠ حرف.');
+        fail(
+          next !== user.password && normalizeTemp(next) !== user.password,
+          400,
+          'اختر كلمة مرور مختلفة عن المؤقتة.',
+        );
+        fail(
+          !/^(.)\1+$/.test(next),
+          400,
+          'كلمة المرور شائعة وسهلة التخمين. اختر كلمة أطول وأقل توقعًا.',
+        );
+        fail(
+          !(user.national_id && next.includes(user.national_id)) &&
+            !(user.student_id && next.includes(user.student_id)),
+          400,
+          'لا تضع بريدك أو رقمك الجامعي داخل كلمة المرور.',
+        );
+        user.password = next;
+        user.must_change_password = 0;
+        user.temp_expires_at = null;
+        user.temp_expiries = 0;
+        user.locked_reason = null;
+        return json({ ok: true });
+      }
       if (route === '/profile' && method === 'GET') {
         studentOnly();
         const history = state.requests
@@ -387,7 +515,7 @@ async function handle(request, url) {
         return json({
           profile: {
             name: user.name,
-            email: user.email,
+            email: isPlaceholder(user.email) ? '' : user.email,
             phone: user.phone || null,
             year: user.year,
             idShown: idShown(user),
@@ -421,11 +549,20 @@ async function handle(request, url) {
         return json({ ok: true });
       }
       if (route === '/profile/password' && method === 'PUT') {
-        fail(user.password === input.current, 403, 'كلمة المرور الحالية غير صحيحة.');
+        fail(
+          user.password === input.current ||
+            (user.must_change_password && user.password === normalizeTemp(input.current)),
+          403,
+          'كلمة المرور الحالية غير صحيحة.',
+        );
         const next = String(input.password || '');
         fail(next.length >= 8 && next.length <= 100, 400, 'كلمة المرور الجديدة من ٨ إلى ١٠٠ حرف.');
         fail(next !== input.current, 400, 'اختر كلمة مرور مختلفة عن الحالية.');
         user.password = next;
+        user.must_change_password = 0;
+        user.temp_expires_at = null;
+        user.temp_expiries = 0;
+        user.locked_reason = null;
         return json({ ok: true });
       }
       if (route === '/profile/logout-others' && method === 'POST') return json({ ok: true });
@@ -697,6 +834,80 @@ async function handle(request, url) {
           });
       }
       if (route.startsWith('/staff/')) staff();
+      const rosterState = (r) => {
+        const u = state.users.find((x) => x.national_id === r.national_id);
+        if (!u) return 'none';
+        if (!u.active) return 'disabled';
+        const locked =
+          u.locked_reason ||
+          (u.must_change_password && u.temp_expires_at && u.temp_expires_at <= Date.now()
+            ? (u.temp_expiries || 0) + 1 >= MAX_EXPIRIES
+              ? 'staff'
+              : 'expired'
+            : null);
+        return locked || (u.must_change_password ? 'temp' : 'active');
+      };
+      if (route === '/staff/roster' && method === 'GET') {
+        const text = String(url.searchParams.get('q') || '')
+          .trim()
+          .slice(0, 60);
+        const q = normalizeDigits(text);
+        let rows = state.roster;
+        if (text)
+          rows = /^[0-9]{4,}$/.test(q)
+            ? rows.filter((r) => r.national_id === q || r.student_id === q)
+            : rows.filter((r) => r.name.includes(text));
+        rows = [...rows].sort((a, b) => a.name.localeCompare(b.name, 'ar')).slice(0, 50);
+        const activated = state.roster.filter((r) => {
+          const u = state.users.find((x) => x.national_id === r.national_id);
+          return u && !u.must_change_password;
+        }).length;
+        return json({
+          total: state.roster.length,
+          activated,
+          tempHours: TEMP_HOURS,
+          students: rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            year: r.year,
+            studentId: r.student_id,
+            nationalLast4: r.national_id.slice(-4),
+            state: rosterState(r),
+          })),
+        });
+      }
+      match = route.match(/^\/staff\/roster\/(\d+)\/temp-password$/);
+      if (match && method === 'POST') {
+        const entry = state.roster.find((r) => r.id === Number(match[1]));
+        fail(entry, 404, 'الطالب غير موجود في السجل.');
+        let account = state.users.find((u) => u.national_id === entry.national_id);
+        fail(!account || account.active, 409, 'هذا الحساب موقوف.');
+        if (!account) {
+          account = {
+            id: state.nextUser++,
+            name: entry.name,
+            email: entry.national_id + NO_EMAIL,
+            student_id: entry.student_id,
+            national_id: entry.national_id,
+            year: entry.year,
+            role: 'student',
+            active: 1,
+            created_at: stamp(),
+          };
+          state.users.push(account);
+        }
+        account.temp_expiries = 0;
+        const issued = issueTemp(account);
+        return json(
+          {
+            temporaryPassword: issued.password,
+            expiresAt: issued.expiresAt,
+            hours: TEMP_HOURS,
+            name: entry.name,
+          },
+          201,
+        );
+      }
       const submitted = () =>
         state.requests.filter((r) => r.period === faculty.periodId && r.status !== 'draft');
       if (route === '/staff/overview') {
@@ -819,6 +1030,47 @@ async function handle(request, url) {
         return json({ request: publicRequest(r, state, faculty) });
       }
       if (route.startsWith('/admin/')) admin();
+      if (route === '/admin/roster/import' && method === 'POST') {
+        const rows = Array.isArray(input.rows) ? input.rows : [];
+        fail(rows.length >= 1 && rows.length <= 300, 400, 'عدد الصفوف غير صحيح.');
+        let added = 0;
+        let updated = 0;
+        const rejected = [];
+        rows.forEach((raw, index) => {
+          const name = String(raw.name || '')
+            .trim()
+            .replace(/\s+/g, ' ');
+          const national = normalizeDigits(raw.national_id);
+          const student = normalizeDigits(raw.student_id);
+          const year = YEARS.includes(raw.year) ? raw.year : null;
+          const error =
+            name.length < 3 || name.length > 100
+              ? 'الاسم من ٣ إلى ١٠٠ حرف.'
+              : !/^[0-9]{14}$/.test(national)
+                ? 'الرقم القومي ١٤ رقمًا.'
+                : student && !/^[0-9]{4,20}$/.test(student)
+                  ? 'الرقم الجامعي من ٤ إلى ٢٠ رقمًا.'
+                  : '';
+          if (error) return rejected.push({ index, error });
+          const hit = state.roster.find((r) => r.national_id === national);
+          if (hit) {
+            hit.name = name;
+            hit.student_id = student || hit.student_id;
+            hit.year = year || hit.year;
+            updated++;
+          } else {
+            state.roster.push({
+              id: state.roster.reduce((m, r) => Math.max(m, r.id), 0) + 1,
+              name,
+              national_id: national,
+              student_id: student || null,
+              year,
+            });
+            added++;
+          }
+        });
+        return json({ added, updated, rejected });
+      }
       if (route === '/admin/staff' && method === 'GET')
         return json({ staff: state.users.filter((u) => u.role !== 'student').map(cleanUser) });
       if (route === '/admin/staff' && method === 'POST') {

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
+import { seedStudent } from './helpers';
 
 type Sent = { to: string; subject: string; text: string; html: string };
 
@@ -15,7 +16,6 @@ async function boot(t: test.TestContext, withMailer: boolean) {
   const { app, db, flushMail } = createApp({
     dataDir: dir,
     demo: true,
-    registrationOpen: true,
     mailer: withMailer
       ? {
           from: 'أَثَر <no-reply@example.test>',
@@ -61,15 +61,17 @@ test('forgot password is unavailable when email is not configured', async (t) =>
 
 test('forgot / reset password flow', async (t) => {
   const { sent, db, flushMail, call } = await boot(t, true);
-  const reg = await call('/register', undefined, 'POST', {
-    name: 'منى إبراهيم',
-    email: 'mona@example.test',
-    password: 'OldPassword1',
-    year: 'الفرقة الثانية',
-    student_id: '20261111',
-    accepted_terms: true,
-  });
-  assert.equal(reg.status, 201);
+  const reg = await seedStudent(
+    db,
+    (email, password) => call('/login', undefined, 'POST', { email, password }),
+    {
+      name: 'منى إبراهيم',
+      email: 'mona@example.test',
+      password: 'OldPassword1',
+      student_id: '20261111',
+    },
+  );
+  assert.equal(reg.status, 200);
   const cookie = reg.headers.get('set-cookie')!.split(';')[0];
   const csrf = (await (await call('/session', cookie)).json()).csrfToken as string;
   await flushMail();
@@ -192,14 +194,16 @@ test('forgot / reset password flow', async (t) => {
 
 test('reset is refused for deactivated accounts', async (t) => {
   const { sent, db, flushMail, call } = await boot(t, true);
-  await call('/register', undefined, 'POST', {
-    name: 'سارة علي',
-    email: 'sara@example.test',
-    password: 'OldPassword1',
-    year: 'الفرقة الثانية',
-    student_id: '20262222',
-    accepted_terms: true,
-  });
+  await seedStudent(
+    db,
+    (email, password) => call('/login', undefined, 'POST', { email, password }),
+    {
+      name: 'سارة علي',
+      email: 'sara@example.test',
+      password: 'OldPassword1',
+      student_id: '20262222',
+    },
+  );
   await flushMail();
   sent.length = 0;
   await call('/forgot-password', undefined, 'POST', { email: 'sara@example.test' });

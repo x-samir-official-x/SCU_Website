@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index';
-import { validatePhone, validateRegistration } from '../src/registration';
+import { validatePhone } from '../src/registration';
+import { seedStudent } from './helpers';
 
 function jpeg() {
   const exif = Buffer.concat([Buffer.from('Exif\0\0'), Buffer.from('GPSLatitude-SECRET')]);
@@ -29,22 +30,11 @@ test('phone validation: Egyptian mobile only, normalized, optional', () => {
   assert.equal(ok(undefined as never), null);
   for (const bad of ['0101234567', '01312345678', '02123456789', 'abc', '010123456789'])
     assert.equal(ok(bad), 'ERR', bad);
-  const base = {
-    name: 'منى إبراهيم',
-    email: 'm@example.test',
-    password: 'StrongPass1',
-    year: 'الفرقة الثانية',
-    student_id: '20261234',
-    accepted_terms: true,
-  };
-  assert.equal(validateRegistration({ ...base, phone: '123' }).ok, false);
-  const withPhone = validateRegistration({ ...base, phone: '01012345678' });
-  assert.ok(withPhone.ok && withPhone.value.phone === '01012345678');
 });
 
 test('notifications, avatar, phone and email', async (t) => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-extras-'));
-  const { app, db } = createApp({ dataDir: dir, demo: true, registrationOpen: true });
+  const { app, db } = createApp({ dataDir: dir, demo: true });
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s));
   });
@@ -74,15 +64,17 @@ test('notifications, avatar, phone and email', async (t) => {
   const student = await login('student@demo.local');
   const moderator = await login('moderator@demo.local');
   const mona = await acc(
-    await call('/register', undefined, 'POST', {
-      name: 'منى إبراهيم',
-      email: 'mona@example.test',
-      password: 'StrongPass1',
-      year: 'الفرقة الثانية',
-      student_id: '20261111',
-      phone: '+201012345678',
-      accepted_terms: true,
-    }),
+    await seedStudent(
+      db,
+      (email, password) => call('/login', undefined, 'POST', { email, password }),
+      {
+        name: 'منى إبراهيم',
+        email: 'mona@example.test',
+        password: 'StrongPass1',
+        student_id: '20261111',
+        phone: '01012345678',
+      },
+    ),
   );
   const file = (bytes: Buffer, type: string) => {
     const f = new FormData();

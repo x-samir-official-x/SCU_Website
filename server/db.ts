@@ -87,6 +87,15 @@ export function openDatabase(dataDir: string, demo: boolean) {
     sent_at INTEGER, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0, last_error TEXT
   ); CREATE INDEX IF NOT EXISTS email_outbox_pending ON email_outbox(sent_at,next_at);`);
   addColumn('users', 'onboarding_dismissed', 'onboarding_dismissed INTEGER NOT NULL DEFAULT 0');
+  // التفعيل بالرقم القومي: سجل الكلية + كلمة المرور المؤقتة (تغيير إجباري ومهلة وقفل).
+  db.exec(`CREATE TABLE IF NOT EXISTS roster (
+    id INTEGER PRIMARY KEY, national_id TEXT NOT NULL UNIQUE, student_id TEXT,
+    name TEXT NOT NULL, year TEXT, imported_at TEXT NOT NULL
+  ); CREATE INDEX IF NOT EXISTS roster_student_idx ON roster(student_id);`);
+  addColumn('users', 'must_change_password', 'must_change_password INTEGER NOT NULL DEFAULT 0');
+  addColumn('users', 'temp_expires_at', 'temp_expires_at INTEGER');
+  addColumn('users', 'temp_expiries', 'temp_expiries INTEGER NOT NULL DEFAULT 0');
+  addColumn('users', 'locked_reason', 'locked_reason TEXT');
   addColumn('requests', 'gallery_show_name', 'gallery_show_name INTEGER NOT NULL DEFAULT 0');
   addColumn('attachments', 'kind', "kind TEXT NOT NULL DEFAULT 'document'");
   const marker = db.prepare('SELECT value FROM metadata WHERE key=?').get('dataset') as
@@ -115,6 +124,14 @@ export function openDatabase(dataDir: string, demo: boolean) {
   }
   return db;
 }
+
+/** أسماء بلا حسابات بعد، للتجربة: يفعّلها المستخدم بالرقم القومي. */
+export const DEMO_ROSTER: [string, string, string | null, string][] = [
+  ['منى إبراهيم السيد', '30401011200141', '20269001', 'الفرقة الثانية'],
+  ['كريم حسن عبد الله', '30311121200172', '20269002', 'الفرقة الثالثة'],
+  ['هدى محمود فتحي', '30507201200215', null, 'الفرقة الأولى'],
+  ['ياسين طارق مصطفى', '30209091200333', '20269004', 'الفرقة الرابعة'],
+];
 
 function seedDemo(db: DatabaseSync) {
   const insert = db.prepare(
@@ -194,6 +211,14 @@ function seedDemo(db: DatabaseSync) {
           'INSERT INTO events (request_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?)',
         ).run(id, 2, status, note, timestamp);
     }
+    // سجل الكلية للعرض: حسابات الطلاب الحالية + أسماء لم تُفعَّل بعد لتجربة «إثبات الهوية».
+    const rosterInsert = db.prepare(
+      'INSERT INTO roster (national_id,student_id,name,year,imported_at) VALUES (?,?,?,?,?)',
+    );
+    for (const [name, , role, sid, nid, year] of users)
+      if (role === 'student') rosterInsert.run(nid, sid, name, year, timestamp);
+    for (const [name, nid, sid, year] of DEMO_ROSTER)
+      rosterInsert.run(nid, sid, name, year, timestamp);
     db.prepare('INSERT INTO metadata VALUES (?,?)').run('dataset', 'demo');
     db.exec('COMMIT');
   } catch (error) {

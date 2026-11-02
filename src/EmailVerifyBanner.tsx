@@ -9,7 +9,14 @@ export function EmailVerifyBanner() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const user = session.user;
-  if (!session.emailEnabled || !user || user.role !== 'student' || user.email_verified) return null;
+  if (
+    !session.emailEnabled ||
+    !user ||
+    user.role !== 'student' ||
+    !user.email ||
+    user.email_verified
+  )
+    return null;
   async function resend() {
     setBusy(true);
     try {

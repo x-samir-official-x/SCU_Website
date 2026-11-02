@@ -1,4 +1,4 @@
-import { typeDemoCredentials } from './demo-login';
+import { typeDemoCredentials, claimAndActivate } from './demo-login';
 import express from 'express';
 import { chromium, type Page } from 'playwright-core';
 import { browserExecutable } from '../server/browser';
@@ -117,6 +117,31 @@ try {
   await logout();
   await login('موظف');
   assert.equal(await page.evaluate(async () => (await fetch('/api/admin/staff')).status), 403);
+  assert.equal(
+    await page.evaluate(
+      async () =>
+        (
+          await fetch('/api/admin/roster/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{"rows":[]}',
+          })
+        ).status,
+    ),
+    403,
+    'roster import is admin-only',
+  );
+  // سجل الطلاب للموظف: بحث وإصدار كلمة مؤقتة (تظهر مرة واحدة)
+  await page.goto(`${base}/roster`, { waitUntil: 'networkidle' });
+  await page.getByPlaceholder(/الاسم، أو الرقم الجامعي/).fill('كريم');
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
+  await page.getByRole('button', { name: 'تفعيل', exact: true }).click();
+  await page.getByRole('button', { name: 'إصدار الكلمة' }).click();
+  assert.match(
+    (await page.locator('.lp-temp-code code').innerText()).trim(),
+    /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/,
+  );
+  await page.getByRole('button', { name: 'تم التسليم' }).click();
   await page.goto(`${base}/requests/${mine.id}`, { waitUntil: 'networkidle' });
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'اعتماد النشاط وإضافة ٤٠ درجة' }).click();
@@ -143,35 +168,34 @@ try {
     await other.evaluate(async () => (await (await fetch('/api/session')).json()).user),
     null,
   );
-  await other.getByRole('link', { name: 'إنشاء حساب جديد', exact: true }).click();
-  await other.getByLabel('الاسم الكامل').fill('طالب تجربة جديد');
-  // بدون رقم جامعي ولا قومي: يظهر خطأ واضح ولا يُنشأ حساب
-  await other.getByLabel('الاسم الكامل').fill('طالب تجربة جديد');
-  await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
-  await other.getByLabel('كلمة المرور').fill('Example2026!');
-  await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');
+  await other.getByRole('link', { name: 'إثبات هويتك', exact: true }).click();
   await other.getByRole('checkbox', { name: /قرأت شروط الاستخدام/ }).check();
-  await other.getByRole('button', { name: 'إنشاء الحساب' }).click();
-  await other
-    .getByText('اكتب الرقم الجامعي (على الكارنيه) أو الرقم القومي', { exact: false })
-    .waitFor();
+  // بلا رقم قومي: خطأ واضح ولا يُنشأ حساب
+  await other.getByRole('button', { name: 'تحقق وأصدر كلمة المرور المؤقتة' }).click();
+  await other.getByText('الرقم القومي ١٤ رقمًا.').waitFor();
+  // رقم ليس في سجل الكلية: رفض بلا كشف أي بيان
+  await other.locator('input[name=national_id]').fill('29901011234567');
+  await other.getByRole('button', { name: 'تحقق وأصدر كلمة المرور المؤقتة' }).click();
+  await other.getByText('بياناتك غير مطابقة لسجلات الكلية', { exact: false }).waitFor();
   assert.equal(await other.locator('.sidebar').count(), 0);
-  await other.getByLabel('الرقم الجامعي').fill('٢٠٢٦٩٩٩٩');
-  await other.getByLabel('البريد الإلكتروني').fill('new-student@example.test');
-  await other.getByLabel('كلمة المرور').fill('Example2026!');
-  await other.getByLabel('الفرقة الدراسية').selectOption('الفرقة الأولى');
-  await other.getByRole('button', { name: 'إنشاء الحساب' }).click();
-  await other.locator('.sidebar').waitFor();
+  // رقم في السجل (والجامعي اختياري): تظهر كلمة مؤقتة، ثم التغيير الإجباري
+  const temp = await claimAndActivate(other, base, {
+    national: '٣٠٢٠٩٠٩١٢٠٠٣٣٣',
+    studentId: '٢٠٢٦٩٠٠٤',
+    password: 'Example2026!',
+  });
+  assert.match(temp, /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
   const registered = await other.evaluate(
     async () => (await (await fetch('/api/session')).json()).user,
   );
   assert.equal(registered.role, 'student');
-  assert.equal(registered.student_id, '20269999');
+  assert.equal(registered.student_id, '20269004');
+  assert.equal(registered.must_change, false);
   // بطاقة المهمة تظهر فورًا بعد إنشاء الحساب، ثم الملف الشخصي
   await other.getByRole('heading', { name: /مهمتك الأولى/ }).waitFor();
   await other.getByRole('link', { name: 'ملفي الشخصي', exact: true }).first().click();
   await other.getByRole('heading', { name: 'ملفي الشخصي', level: 1 }).waitFor();
-  assert.equal((await other.getByText('20269999').count()) > 0, true);
+  assert.equal((await other.getByText('20269004').count()) > 0, true);
   await other.getByLabel('كلمة المرور الحالية', { exact: true }).fill('Example2026!');
   await other.getByLabel(/^كلمة المرور الجديدة/).fill('Changed2026!');
   await other.getByLabel('أعد كتابة كلمة المرور الجديدة').fill('Changed2026!');
@@ -200,7 +224,7 @@ try {
         server: 'static files only',
         checks: [
           'public landing, sample filtering, mobile menu and FAQ',
-          'new browser-local student registration and role boundaries',
+          'identity claim from the college roster, forced password change and role boundaries',
           'authenticated sample dialog and Escape dismissal',
           'service worker initialization',
           'local IndexedDB draft and file upload',
