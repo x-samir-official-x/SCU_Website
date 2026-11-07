@@ -57,7 +57,16 @@ export function FloatingNav({ parallaxRef }: { parallaxRef: React.RefObject<HTML
               fetchPriority="high"
             />
             <span className="fnav-brand-text">
-              <strong lang="ar">{session.faculty.platformName}</strong>
+              <strong lang="ar">
+                <img
+                  className="athar-logo"
+                  src="/brand/athar-horizontal-light.svg"
+                  width="449"
+                  height="190"
+                  alt=""
+                />
+                <span className="sr-only">{session.faculty.platformName}</span>
+              </strong>
               <small>{session.faculty.brand}</small>
             </span>
           </Link>

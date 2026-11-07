@@ -311,7 +311,15 @@ export function Landing() {
             <div className="px-hero-copy">
               <div className="px-brand">
                 <span className="px-brand-name" lang="ar">
-                  {session.faculty.platformName}
+                  <img
+                    className="athar-logo"
+                    src="/brand/athar-horizontal-dark.svg"
+                    width="449"
+                    height="190"
+                    alt=""
+                    fetchPriority="high"
+                  />
+                  <span className="sr-only">{session.faculty.platformName}</span>
                 </span>
                 <span className="px-brand-sub">{session.faculty.brand}</span>
               </div>

@@ -229,3 +229,55 @@ html:has(.landing-page) {
     }
   }
 }
+
+/* ================= شعار «أثر» (الرمز والكلمة) ================= */
+.athar-logo {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+.px-brand-name {
+  display: block;
+  height: clamp(74px, 9vw, 110px);
+  line-height: 0;
+  text-shadow: none;
+}
+.login-wordmark {
+  height: 74px;
+  line-height: 0;
+  margin-bottom: 4px;
+}
+.splash-title {
+  height: clamp(96px, 26vw, 140px);
+  padding: 0;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  line-height: 0;
+  filter: drop-shadow(0 6px 28px rgba(0, 0, 0, 0.35));
+}
+.fnav-brand-text strong {
+  display: block;
+  height: 38px;
+  line-height: 0;
+}
+.fnav[data-scrolled='true'] .fnav-brand-text strong {
+  height: 32px;
+}
+.chip-logo {
+  flex: none;
+  width: 34px;
+  height: 29px;
+}
+@media (max-width: 760px) {
+  .login-wordmark {
+    height: 60px;
+  }
+}
+@media (max-width: 460px) {
+  .fnav-brand-text strong {
+    height: 30px;
+  }
+}
