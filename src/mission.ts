@@ -34,7 +34,7 @@ export function missionSteps(
   const steps: MissionStep[] = [
     {
       id: 'account',
-      title: 'أنشأت حسابك',
+      title: 'أثبتّ هويتك وفعّلت حسابك',
       state: 'done',
       tips: ['بياناتك محفوظة. تقدر تراجعها وتغيّر كلمة المرور من «ملفي الشخصي».'],
     },
