@@ -94,7 +94,14 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
         <Mark light />
         <div className="login-story-body">
           <span className="login-wordmark" lang="ar">
-            {session.faculty.platformName}
+            <img
+              className="athar-logo"
+              src="/brand/athar-horizontal-dark.svg"
+              width="449"
+              height="190"
+              alt=""
+            />
+            <span className="sr-only">{session.faculty.platformName}</span>
           </span>
           <span className="login-institution-label">جامعة قناة السويس</span>
           <h1>
@@ -303,7 +310,13 @@ function Shell() {
           </button>
         </div>
         <div className="faculty-chip">
-          <GraduationCap size={20} />
+          <img
+            className="chip-logo"
+            src="/brand/athar-icon-dark.svg"
+            width="208"
+            height="178"
+            alt=""
+          />
           <div>
             <strong lang="ar">{session.faculty.platformName || session.faculty.faculty}</strong>
             <small>

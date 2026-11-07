@@ -70,7 +70,15 @@ export function Splash() {
           </span>
         </div>
         <div className="splash-title" lang="ar">
-          {facultyFallback.platformName}
+          <img
+            className="athar-logo"
+            src="/brand/athar-horizontal-dark.svg"
+            width="449"
+            height="190"
+            alt=""
+            decoding="async"
+          />
+          <span className="sr-only">{facultyFallback.platformName}</span>
         </div>
         <div className="splash-sub">{facultyFallback.brand}</div>
         <div className="splash-org">
