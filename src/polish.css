@@ -281,3 +281,22 @@ html:has(.landing-page) {
     height: 30px;
   }
 }
+
+/* ================= فورم تسجيل النشاط على الهاتف ================= */
+@media (max-width: 560px) {
+  .activity-form .form-row {
+    grid-template-columns: 1fr;
+  }
+  .activity-form .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .activity-form .form-actions .button {
+    width: 100%;
+    flex: none;
+    min-width: 0;
+    font-size: 14.5px;
+    white-space: normal;
+    justify-content: center;
+  }
+}
