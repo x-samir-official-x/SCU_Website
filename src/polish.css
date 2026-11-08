@@ -230,8 +230,8 @@ html:has(.landing-page) {
   }
 }
 
-/* ================= شعار «أثر» (الرمز والكلمة) ================= */
-.athar-logo {
+/* ================= شعار «رِواق» (الكلمة هي الشعار) ================= */
+.brand-logo {
   display: block;
   width: auto;
   height: 100%;
@@ -266,10 +266,10 @@ html:has(.landing-page) {
 .fnav[data-scrolled='true'] .fnav-brand-text strong {
   height: 32px;
 }
-.chip-logo {
-  flex: none;
-  width: 34px;
-  height: 29px;
+.faculty-chip .brand-logo {
+  height: 36px;
+  width: auto;
+  margin-bottom: 3px;
 }
 @media (max-width: 760px) {
   .login-wordmark {
@@ -299,4 +299,27 @@ html:has(.landing-page) {
     white-space: normal;
     justify-content: center;
   }
+}
+
+/* العنوان الفرعي للاسم: «مساحة لمشاركتك، وقيمة لإنجازك.» */
+.px-brand-tagline,
+.login-tagline,
+.splash-tagline {
+  display: block;
+  font-weight: 800;
+  color: #e3c374;
+  letter-spacing: 0;
+}
+.px-brand-tagline {
+  font-size: clamp(16px, 1.6vw, 20px);
+  margin-top: 2px;
+}
+.login-tagline {
+  font-size: 17px;
+  margin: 8px 0 14px;
+}
+.splash-tagline {
+  font-size: clamp(1.05rem, 3.2vw, 1.4rem);
+  margin-bottom: 4px;
+  animation: splash-fade 0.8s ease 0.8s both;
 }

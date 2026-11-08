@@ -6,6 +6,7 @@ const manifest = () =>
     {
       name: `${faculty.platformName} | ${faculty.brand} — ${faculty.faculty} | ${faculty.university}`,
       short_name: faculty.platformName,
+      description: `${faculty.tagline} ${faculty.brand} بـ${faculty.faculty}.`,
       lang: 'ar',
       dir: 'rtl',
       start_url: '/',
@@ -31,6 +32,7 @@ export default defineConfig(({ mode }) => ({
       transformIndexHtml: (html: string) =>
         html
           .replaceAll('%PLATFORM%', faculty.platformName)
+          .replaceAll('%TAGLINE%', faculty.tagline)
           .replaceAll('%BRAND%', faculty.brand)
           .replaceAll('%FACULTY%', faculty.faculty)
           .replaceAll('%UNIVERSITY%', faculty.university),

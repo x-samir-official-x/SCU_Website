@@ -14,7 +14,7 @@ const { app, db, flushMail } = createApp({
   dataDir: dir,
   demo: true,
   mailer: {
-    from: 'أَثَر <no-reply@example.test>',
+    from: 'رِواق <no-reply@example.test>',
     transport: { sendMail: async (m) => void sent.push(m) },
   },
 });

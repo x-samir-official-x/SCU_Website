@@ -39,6 +39,7 @@ test('faculty config has every field the UI reads', () => {
   const config = JSON.parse(readFileSync(path.join(root, 'config/faculty.json'), 'utf8'));
   for (const key of [
     'platformName',
+    'tagline',
     'brand',
     'faculty',
     'facultyShort',

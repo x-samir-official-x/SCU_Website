@@ -12,16 +12,16 @@ type Sent = { to: string; subject: string; text: string; html: string };
 async function boot(t: test.TestContext, withMailer: boolean) {
   const sent: Sent[] = [];
   const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-reset-'));
-  process.env.APP_ORIGIN = 'https://athar.example.test';
+  process.env.APP_ORIGIN = 'https://riwaq.example.test';
   const { app, db, flushMail } = createApp({
     dataDir: dir,
     demo: true,
     mailer: withMailer
       ? {
-          from: 'أَثَر <no-reply@example.test>',
+          from: 'رِواق <no-reply@example.test>',
           transport: {
             sendMail: async (m: Sent & { from: string; attachments?: unknown[] }) => {
-              assert.ok(!m.html.includes('cid:athar-logos@scu') || m.attachments?.length === 1);
+              assert.ok(!m.html.includes('cid:riwaq-logos@scu') || m.attachments?.length === 1);
               sent.push(m);
             },
           },
@@ -89,7 +89,7 @@ test('forgot / reset password flow', async (t) => {
   await flushMail();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, 'mona@example.test');
-  assert.ok(sent[0].html.includes('cid:athar-logos@scu'));
+  assert.ok(sent[0].html.includes('cid:riwaq-logos@scu'));
   assert.ok(
     !db.prepare('SELECT 1 FROM password_resets WHERE token_hash=?').get(tokenOf(sent[0])),
     'token is stored hashed',

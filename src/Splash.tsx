@@ -71,15 +71,18 @@ export function Splash() {
         </div>
         <div className="splash-title" lang="ar">
           <img
-            className="athar-logo"
-            src="/brand/athar-horizontal-dark.svg"
-            width="449"
-            height="190"
+            className="brand-logo"
+            src="/brand/riwaq-dark.svg"
+            width="1737"
+            height="732"
             alt=""
             decoding="async"
           />
           <span className="sr-only">{facultyFallback.platformName}</span>
         </div>
+        {facultyFallback.tagline && (
+          <div className="splash-tagline">{facultyFallback.tagline}</div>
+        )}
         <div className="splash-sub">{facultyFallback.brand}</div>
         <div className="splash-org">
           {facultyFallback.faculty} | {facultyFallback.university}

@@ -19,6 +19,7 @@ export interface User {
 }
 export interface Faculty {
   platformName: string;
+  tagline?: string;
   brand: string;
   logoPath: string;
   faculty: string;

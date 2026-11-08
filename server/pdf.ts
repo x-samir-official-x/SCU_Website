@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { ActivityRequest, Faculty } from '../src/types';
 import { browserExecutable } from './browser';
 
-export const FORM_TEMPLATE_VERSION = 6;
+export const FORM_TEMPLATE_VERSION = 9;
 
 interface Snapshot {
   student: { name: string; student_id: string; national_id?: string; year: string };
@@ -28,8 +28,8 @@ export async function renderForm(snapshot: Snapshot) {
   const identities = readFileSync(new URL(`../public${f.logoPath}`, import.meta.url)).toString(
     'base64',
   );
-  const atharLogo = readFileSync(
-    new URL('../public/brand/athar-horizontal-light.svg', import.meta.url),
+  const brandLogo = readFileSync(
+    new URL('../public/brand/riwaq-light.svg', import.meta.url),
   ).toString('base64');
   const field = (label: string, value: string) =>
     `<div class="field"><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`;
@@ -39,7 +39,7 @@ export async function renderForm(snapshot: Snapshot) {
     .top{display:flex;align-items:center;gap:16px;padding:0 0 14px;border-bottom:2px solid #102b50;position:relative}
     .top:after{content:"";position:absolute;right:0;bottom:-2px;width:72px;height:2px;background:#c9a24a}
     .identities{width:150px;height:auto;object-fit:contain;flex:none}
-    .athar{display:block;height:40px;width:auto;margin-bottom:2px}.rule{width:1px;align-self:stretch;background:#d5deec;margin:4px 0}
+    .tag{display:block;font-style:normal;font-weight:700;font-size:12px;color:#a07a2c;margin:1px 0 0}.brand-logo{display:block;height:40px;width:auto;margin-bottom:2px}.rule{width:1px;align-self:stretch;background:#d5deec;margin:4px 0}
     .institution{flex:1}.institution b{display:block;font-size:23px;line-height:1.35;padding:2px 0;color:#102b50}.institution span{display:block;font-size:12px;color:#5c6e85}
     .institution i{font-style:normal;color:#a07a2c;font-size:11.5px;font-weight:700;display:block}
     .badge{border:1px solid #102b50;padding:7px 14px;border-radius:6px;font-size:10.5px;text-align:center;line-height:1.7;color:#445774}.badge b{display:block;font-size:14px;color:#102b50;direction:ltr}
@@ -52,7 +52,7 @@ export async function renderForm(snapshot: Snapshot) {
     .signatures{display:flex;gap:20px;margin-top:22px}.signatures div{flex:1;border-top:1px dashed #9aa9bf;padding-top:9px}
       .stamp{margin-top:14px;height:52px;border:1px dashed #9aa9bf;border-radius:8px;position:relative}.stamp span{position:absolute;top:6px;right:12px;font-size:10.5px;color:#7a889d}
     footer{margin-top:14px;border-top:1px solid #dce5f2;padding-top:12px;font-size:9.5px;color:#6b7a90}
-  </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="rule"></div><div class="institution"><img class="athar" src="data:image/svg+xml;base64,${atharLogo}" alt="${escape(f.platformName || f.brand)}">${f.platformName ? `<i>${escape(f.brand)}</i>` : ''}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
+  </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="rule"></div><div class="institution"><img class="brand-logo" src="data:image/svg+xml;base64,${brandLogo}" alt="${escape(f.platformName || f.brand)}">${f.tagline ? `<em class="tag">${escape(f.tagline)}</em>` : ''}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
   <h1>استمارة تقديم النشاط الطلابي</h1><p class="muted">${escape(f.period)}</p>
   <div class="notice">هذه الاستمارة تثبت تقديم الطلب فقط. اعتماد النشاط واحتساب الدرجة يستلزمان مراجعة الموظف المختص.</div>
   <h2>أولًا: بيانات الطالب</h2><div class="grid">${field('اسم الطالب', student.name)}${student.student_id ? field('الرقم الجامعي', student.student_id) : field('الرقم القومي', student.national_id ?? '')}${field('الفرقة الدراسية', student.year)}${field('الكلية', f.faculty)}</div>

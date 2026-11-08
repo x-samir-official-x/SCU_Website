@@ -27,7 +27,7 @@ try {
   await page.goto(`${base}/?splash=1`, { waitUntil: 'commit' });
   await page.getByTestId('splash').waitFor();
   assert.equal(await page.locator('.splash-disc img').count(), 2);
-  assert.match((await page.locator('.splash-title').textContent()) ?? '', /أَثَر/);
+  assert.match((await page.locator('.splash-title').textContent()) ?? '', /رِواق/);
   assert.equal(
     await page.evaluate(() => document.documentElement.classList.contains('splash-lock')),
     true,

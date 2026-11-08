@@ -312,15 +312,18 @@ export function Landing() {
               <div className="px-brand">
                 <span className="px-brand-name" lang="ar">
                   <img
-                    className="athar-logo"
-                    src="/brand/athar-horizontal-dark.svg"
-                    width="449"
-                    height="190"
+                    className="brand-logo"
+                    src="/brand/riwaq-dark.svg"
+                    width="1737"
+                    height="732"
                     alt=""
                     fetchPriority="high"
                   />
                   <span className="sr-only">{session.faculty.platformName}</span>
                 </span>
+                {session.faculty.tagline && (
+                  <span className="px-brand-tagline">{session.faculty.tagline}</span>
+                )}
                 <span className="px-brand-sub">{session.faculty.brand}</span>
               </div>
               <p className="px-chip">
@@ -396,7 +399,7 @@ export function Landing() {
                   <span>للنشاط الواحد المعتمد</span>
                 </div>
               </div>
-              <p className="px-art-label">نتعلّم. نشارك. نترك أثرًا.</p>
+              <p className="px-art-label">نتعلّم. نشارك. نوثّق إنجازنا.</p>
             </div>
           </div>
           <div className="px-wrap">
