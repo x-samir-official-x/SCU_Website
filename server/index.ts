@@ -264,7 +264,9 @@ export function createApp(
   const platform = faculty.platformName || faculty.brand;
   const mailBrand = {
     platform,
-    tagline: faculty.platformName ? faculty.brand : undefined,
+    tagline: faculty.platformName
+      ? [faculty.tagline, faculty.brand].filter(Boolean).join(' · ')
+      : undefined,
     faculty: faculty.faculty,
     university: faculty.university,
   };

@@ -80,6 +80,9 @@ export function Splash() {
           />
           <span className="sr-only">{facultyFallback.platformName}</span>
         </div>
+        {facultyFallback.tagline && (
+          <div className="splash-tagline">{facultyFallback.tagline}</div>
+        )}
         <div className="splash-sub">{facultyFallback.brand}</div>
         <div className="splash-org">
           {facultyFallback.faculty} | {facultyFallback.university}

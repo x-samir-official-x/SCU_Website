@@ -103,6 +103,9 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
             />
             <span className="sr-only">{session.faculty.platformName}</span>
           </span>
+          {session.faculty.tagline && (
+            <span className="login-tagline">{session.faculty.tagline}</span>
+          )}
           <span className="login-institution-label">جامعة قناة السويس</span>
           <h1>
             بوابة النشاط <br />

@@ -321,6 +321,9 @@ export function Landing() {
                   />
                   <span className="sr-only">{session.faculty.platformName}</span>
                 </span>
+                {session.faculty.tagline && (
+                  <span className="px-brand-tagline">{session.faculty.tagline}</span>
+                )}
                 <span className="px-brand-sub">{session.faculty.brand}</span>
               </div>
               <p className="px-chip">
