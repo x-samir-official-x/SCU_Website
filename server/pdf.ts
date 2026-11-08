@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { ActivityRequest, Faculty } from '../src/types';
 import { browserExecutable } from './browser';
 
-export const FORM_TEMPLATE_VERSION = 8;
+export const FORM_TEMPLATE_VERSION = 9;
 
 interface Snapshot {
   student: { name: string; student_id: string; national_id?: string; year: string };
@@ -52,7 +52,7 @@ export async function renderForm(snapshot: Snapshot) {
     .signatures{display:flex;gap:20px;margin-top:22px}.signatures div{flex:1;border-top:1px dashed #9aa9bf;padding-top:9px}
       .stamp{margin-top:14px;height:52px;border:1px dashed #9aa9bf;border-radius:8px;position:relative}.stamp span{position:absolute;top:6px;right:12px;font-size:10.5px;color:#7a889d}
     footer{margin-top:14px;border-top:1px solid #dce5f2;padding-top:12px;font-size:9.5px;color:#6b7a90}
-  </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="rule"></div><div class="institution"><img class="brand-logo" src="data:image/svg+xml;base64,${brandLogo}" alt="${escape(f.platformName || f.brand)}">${f.tagline ? `<em class="tag">${escape(f.tagline)}</em>` : ''}${f.platformName ? `<i>${escape(f.brand)}</i>` : ''}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
+  </style><body><div class="top"><img class="identities" src="data:image/png;base64,${identities}" alt="شعار الجامعة والكلية"><div class="rule"></div><div class="institution"><img class="brand-logo" src="data:image/svg+xml;base64,${brandLogo}" alt="${escape(f.platformName || f.brand)}">${f.tagline ? `<em class="tag">${escape(f.tagline)}</em>` : ''}<span>جامعة قناة السويس — ${escape(f.faculty)}</span></div><div class="badge">رقم الطلب<b>ACT-${r.id.toString().padStart(5, '0')}</b>الإصدار ${r.version}</div></div>
   <h1>استمارة تقديم النشاط الطلابي</h1><p class="muted">${escape(f.period)}</p>
   <div class="notice">هذه الاستمارة تثبت تقديم الطلب فقط. اعتماد النشاط واحتساب الدرجة يستلزمان مراجعة الموظف المختص.</div>
   <h2>أولًا: بيانات الطالب</h2><div class="grid">${field('اسم الطالب', student.name)}${student.student_id ? field('الرقم الجامعي', student.student_id) : field('الرقم القومي', student.national_id ?? '')}${field('الفرقة الدراسية', student.year)}${field('الكلية', f.faculty)}</div>
