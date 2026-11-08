@@ -1,4 +1,4 @@
-# «أَثَر» | بوابة النشاط الطلابي — كلية التجارة | جامعة قناة السويس
+# «رِواق» | بوابة النشاط الطلابي — كلية التجارة | جامعة قناة السويس
 
 نسخة تطوير وتجربة مستقلة لكلية التجارة: تقديم نشاط واحد، ومراجعته، وإصدار استمارة PDF عربية، واحتساب ٤٠ درجة بعد اعتماد الموظف.
 
@@ -6,7 +6,7 @@
 
 ## صور النسخة التجريبية
 
-[شاشة الدخول](docs/screenshots/login.png) · [واجهة الطالب](docs/screenshots/student-desktop.png) · [واجهة الموبايل](docs/screenshots/student-mobile.png) · [لوحة الموظف](docs/screenshots/moderator-desktop.png) · [إدارة الموظفين](docs/screenshots/staff-management.png) · [نموذج الاستمارة التجريبية](docs/sample-activity-form.pdf)
+[شاشة الدخول](docs/screenshots/login.png) · [واجهة الطالب](docs/screenshots/student-desktop.png) · [واجهة الموبايل](docs/screenshots/student-mobile.png) · [لوحة الموظف](docs/screenshots/moderator-desktop.png) · [إدارة الموظفين](docs/screenshots/staff-management.png) · [نموذج الاستمارة](docs/sample-activity-form.pdf)
 
 هذه لقطات فعلية من اختبار المتصفح وليست تصميمات منفصلة عن التطبيق.
 

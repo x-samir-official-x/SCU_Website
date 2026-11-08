@@ -71,10 +71,10 @@ export function Splash() {
         </div>
         <div className="splash-title" lang="ar">
           <img
-            className="athar-logo"
-            src="/brand/athar-horizontal-dark.svg"
-            width="449"
-            height="190"
+            className="brand-logo"
+            src="/brand/riwaq-dark.svg"
+            width="1737"
+            height="732"
             alt=""
             decoding="async"
           />

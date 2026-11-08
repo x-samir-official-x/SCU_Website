@@ -230,8 +230,8 @@ html:has(.landing-page) {
   }
 }
 
-/* ================= شعار «أثر» (الرمز والكلمة) ================= */
-.athar-logo {
+/* ================= شعار «رِواق» (الكلمة هي الشعار) ================= */
+.brand-logo {
   display: block;
   width: auto;
   height: 100%;
@@ -266,10 +266,10 @@ html:has(.landing-page) {
 .fnav[data-scrolled='true'] .fnav-brand-text strong {
   height: 32px;
 }
-.chip-logo {
-  flex: none;
-  width: 34px;
-  height: 29px;
+.faculty-chip .brand-logo {
+  height: 36px;
+  width: auto;
+  margin-bottom: 3px;
 }
 @media (max-width: 760px) {
   .login-wordmark {

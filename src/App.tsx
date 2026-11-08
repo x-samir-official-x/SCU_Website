@@ -95,10 +95,10 @@ function Login({ session, refresh }: { session: Session; refresh: () => Promise<
         <div className="login-story-body">
           <span className="login-wordmark" lang="ar">
             <img
-              className="athar-logo"
-              src="/brand/athar-horizontal-dark.svg"
-              width="449"
-              height="190"
+              className="brand-logo"
+              src="/brand/riwaq-dark.svg"
+              width="1737"
+              height="732"
               alt=""
             />
             <span className="sr-only">{session.faculty.platformName}</span>
@@ -310,15 +310,17 @@ function Shell() {
           </button>
         </div>
         <div className="faculty-chip">
-          <img
-            className="chip-logo"
-            src="/brand/athar-icon-dark.svg"
-            width="208"
-            height="178"
-            alt=""
-          />
           <div>
-            <strong lang="ar">{session.faculty.platformName || session.faculty.faculty}</strong>
+            <img
+              className="brand-logo"
+              src="/brand/riwaq-dark.svg"
+              width="1737"
+              height="732"
+              alt=""
+            />
+            <strong className="sr-only" lang="ar">
+              {session.faculty.platformName || session.faculty.faculty}
+            </strong>
             <small>
               {session.faculty.brand} · {session.faculty.period}
             </small>

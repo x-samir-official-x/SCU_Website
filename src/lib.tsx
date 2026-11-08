@@ -5,7 +5,7 @@ import type { Session, Status } from './types';
 /** نسخة WebP خفيفة من الشعار للواجهة؛ ملف PNG الأصلي يبقى للاستمارة المطبوعة. */
 export const logoSrc = (path: string) => path.replace(/\.png$/i, '.webp');
 
-export const SESSION_EXPIRED = 'athar-session-expired';
+export const SESSION_EXPIRED = 'riwaq-session-expired';
 let csrf = '';
 export function setCsrf(value: string) {
   csrf = value;

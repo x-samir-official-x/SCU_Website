@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 const pub = (p: string) => new URL(`../public/${p}`, import.meta.url);
 
-test('ملفات شعار أثر والأيقونات موجودة بالمقاسات الصحيحة', () => {
+test('ملفات شعار رِواق والأيقونات موجودة بالمقاسات الصحيحة', () => {
   for (const f of [
     'favicon.svg',
     'favicon.ico',
@@ -14,10 +14,8 @@ test('ملفات شعار أثر والأيقونات موجودة بالمقا�
     'icon-192.png',
     'icon-512.png',
     'icon-maskable-512.png',
-    'brand/athar-icon-light.svg',
-    'brand/athar-icon-dark.svg',
-    'brand/athar-horizontal-light.svg',
-    'brand/athar-horizontal-dark.svg',
+    'brand/riwaq-light.svg',
+    'brand/riwaq-dark.svg',
   ])
     assert.ok(existsSync(pub(f)), `الملف ناقص: ${f}`);
   const dims = (f: string) => {

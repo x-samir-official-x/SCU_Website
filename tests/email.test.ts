@@ -14,7 +14,7 @@ test('mailer is off unless SMTP_HOST and MAIL_FROM are set; templates escape HTM
   assert.equal(mailerFromEnv({ SMTP_HOST: 'smtp.example.test' }), null);
   assert.ok(mailerFromEnv({ SMTP_HOST: 'smtp.example.test', MAIL_FROM: 'a@example.test' }));
   const m = renderEmail({
-    platform: 'أَثَر',
+    platform: 'رِواق',
     heading: '<b>x</b>',
     lines: ['a & b'],
     button: { label: 'فتح', url: 'https://example.test/?a=1&b="2"' },
@@ -29,7 +29,7 @@ test('email verification and notification emails', async (t) => {
   const sent: Sent[] = [];
   let failNext = false;
   const mailer = {
-    from: 'أَثَر <no-reply@example.test>',
+    from: 'رِواق <no-reply@example.test>',
     transport: {
       sendMail: async (m: Sent & { from: string }) => {
         if (failNext) {
@@ -41,7 +41,7 @@ test('email verification and notification emails', async (t) => {
     },
   };
   const dir = mkdtempSync(path.join(os.tmpdir(), 'scu-mail-'));
-  process.env.APP_ORIGIN = 'https://athar.example.test';
+  process.env.APP_ORIGIN = 'https://riwaq.example.test';
   const { app, db, flushMail } = createApp({
     dataDir: dir,
     demo: true,
@@ -111,7 +111,7 @@ test('email verification and notification emails', async (t) => {
     assert.equal(sent.length, 1);
     assert.equal(sent[0].to, 'mona@example.test');
     assert.match(sent[0].text, /^.*\n/);
-    assert.ok(sent[0].text.includes('https://athar.example.test/verify-email?token='));
+    assert.ok(sent[0].text.includes('https://riwaq.example.test/verify-email?token='));
     const s = await session(mona);
     assert.equal(s.emailEnabled, true);
     assert.equal(s.user.email_verified, 0);
@@ -193,7 +193,7 @@ test('email verification and notification emails', async (t) => {
     );
     assert.equal(mails.length, 1);
     assert.ok(!mails[0].text.includes('سري') && !mails[0].html.includes('سري'));
-    assert.ok(mails[0].text.includes('https://athar.example.test/dashboard'));
+    assert.ok(mails[0].text.includes('https://riwaq.example.test/dashboard'));
     // إشعار ثانٍ خلال ٥ دقائق لا يرسل بريدًا ثانيًا
     await review('reopen', admin, 'إعادة فتح للتجربة');
     await flushMail();
@@ -317,10 +317,10 @@ test('real SMTP delivery through nodemailer (local test server)', async (t) => {
     SMTP_SECURE: 'false',
     SMTP_USER: 'user',
     SMTP_PASS: 'secret',
-    MAIL_FROM: 'أَثَر <no-reply@example.test>',
+    MAIL_FROM: 'رِواق <no-reply@example.test>',
   })!;
   const body = renderEmail({
-    platform: 'أَثَر',
+    platform: 'رِواق',
     heading: 'أهلًا',
     tagline: 'بوابة النشاط الطلابي',
     faculty: 'كلية التجارة',
@@ -337,7 +337,7 @@ test('real SMTP delivery through nodemailer (local test server)', async (t) => {
   });
   // شعارا الكلية والجامعة مضمّنان كصورة CID داخل الرسالة نفسها
   assert.equal(received[0].cids.length, 1);
-  assert.match(received[0].cids[0], /^athar-logos@scu\|image\/png\|\d{5,}$/);
+  assert.match(received[0].cids[0], /^riwaq-logos@scu\|image\/png\|\d{5,}$/);
   assert.ok(received[0].html.includes('بوابة النشاط الطلابي'));
   assert.equal(received.length, 1);
   assert.equal(received[0].subject, 'تأكيد بريدك');

@@ -38,7 +38,7 @@ export function mailerFromEnv(env: NodeJS.ProcessEnv = process.env): Mailer | nu
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** معرّف الصورة المضمّنة (CID) لشعاري الكلية والجامعة؛ تُرفق عند الإرسال فتظهر دون حظر الصور الخارجية. */
-export const LOGO_CID = 'athar-logos@scu';
+export const LOGO_CID = 'riwaq-logos@scu';
 
 export interface EmailBrand {
   platform: string;
